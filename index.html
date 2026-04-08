@@ -211,11 +211,14 @@ html, body {
   .sidebar-backdrop.open { display: block; }
   .hamburger { display: flex; }
 
-  /* Make topbar horizontally scrollable so buttons don't get squished */
-  .topbar { overflow-x: auto; padding: 0 12px; }
-  .topbar::-webkit-scrollbar { display: none; }
-  .topbar-meta { display: none; } /* Hide extra text to save space */
-  
+  /* Topbar Mobile Fix: Wrap into two rows so buttons are never hidden */
+  .topbar { height: auto; flex-wrap: wrap; padding: 12px 10px; gap: 6px; justify-content: center;}
+  .hamburger { order: 1; flex: 0 0 auto; margin-right: auto; }
+  .topbar-title { order: 2; flex: 1 1 50%; text-align: center; font-size: 14px; }
+  .sync-dot { order: 3; flex: 0 0 auto; margin-left: auto; }
+  .btn-icon:not(.hamburger) { order: 4; flex: 1 1 20%; justify-content: center; padding: 8px 4px; font-size: 11px; }
+  .topbar-meta { display: none; }
+
   /* Make filters row swipeable horizontally */
   .filters-bar { overflow-x: auto; flex-wrap: nowrap; padding: 10px 12px; -webkit-overflow-scrolling: touch; }
   .filters-bar::-webkit-scrollbar { display: none; }
