@@ -129,7 +129,7 @@ html, body {
 .card-stem { padding: 22px 22px 16px; font-size: 15.5px; font-weight: 500; color: var(--text); line-height: 1.65; direction: auto; }
 
 .choices { padding: 0 22px 20px; display: flex; flex-direction: column; gap: 8px; }
-.choice-btn { display: flex; align-items: flex-start; gap: 12px; padding: 12px 14px; background: var(--bg3); border: 1px solid var(--border2); border-radius: 8px; cursor: pointer; transition: all .15s; text-align: left; width: 100%; font-family: var(--sans); color: var(--text2); font-size: 14px; line-height: 1.5; }
+.choice-btn { display: flex; align-items: flex-start; gap: 12px; padding: 12px 14px; background: var(--bg3); border: 1px solid var(--border2); border-radius: 8px; cursor: pointer; transition: all .15s; text-align: left; width: 100%; font-family: var(--sans); color: var(--text2); font-size: 14px; line-height: 1.5; justify-content: flex-start; }
 .choice-btn:hover:not(.locked) { border-color: var(--border); color: var(--text); background: var(--bg2); }
 .choice-btn.locked { cursor: default; }
 .choice-letter { font-family: var(--mono); font-size: 12px; color: var(--text3); background: var(--bg2); border: 1px solid var(--border2); border-radius: 4px; padding: 1px 7px; flex-shrink: 0; margin-top: 1px; min-width: 28px; text-align: center; }
@@ -305,7 +305,7 @@ html, body {
         <button class="btn-icon hamburger" onclick="toggleSidebar()">☰</button>
         <div class="topbar-title" id="deck-title">All Questions</div>
         <div class="topbar-meta" id="deck-meta">—</div>
-        <button class="btn-icon shuffle-on" onclick="toggleShuffle(this)" id="btn-shuffle" title="Shuffle">⇌ Shuffle</button>
+        <button class="btn-icon shuffle-on" onclick="toggleShuffle(this)" id="btn-shuffle" title="Shuffle">⇌ Shuffle ON</button>
         <button class="btn-icon" onclick="showNotebookPanel()" id="btn-notebook" title="Notes & Wrong Answers">📓 Notebook</button>
         <button class="btn-icon" onclick="showStats()" title="Statistics">◎ Stats</button>
         <button class="btn-icon" id="logoutBtn" style="color:var(--red); border-color:var(--red-dim)">Logout</button>
@@ -355,7 +355,7 @@ html, body {
       </div>
       <div class="panel-footer">
         <button class="btn-icon" onclick="closeNotebookPanel()">Close</button>
-        <button class="btn-primary" id="practice-wrong-btn" onclick="practiceWrong()" style="width:auto;">Practice Wrong</button>
+        <button class="btn-primary" id="practice-wrong-btn" onclick="practiceWrong()" style="width:auto;">Practice Wrong Bank</button>
       </div>
     </div>
   </div>
@@ -365,8 +365,7 @@ html, body {
       <div class="panel-header"><h2>Progress Statistics</h2><button class="panel-close" onclick="closeStats()">×</button></div>
       <div class="panel-body" id="stats-body"></div>
       <div class="panel-footer">
-        <button class="btn-icon" style="color:var(--red);border-color:var(--red)" onclick="clearProgress()">Reset Progress</button>
-        <button class="btn-primary" onclick="closeStats()" style="width:auto;">Close</button>
+        <button class="btn-primary" onclick="closeStats()" style="width:100%;">Close Statistics</button>
       </div>
     </div>
   </div>
@@ -376,7 +375,7 @@ html, body {
   <script src="questions_data.js"></script>
 
   <script>
-    const LS_KEY = 'obg_progress_v8'; // Bumped so old temporary logic is cleared
+    const LS_KEY = 'obg_progress_v8'; 
     let deck = [], idx = 0, shuffleMode = true, filterLecture = null, filterSource = '';
     let mcqAnswers = {}, sessionCorrect = 0, sessionWrong = 0, syncTimeout = null;
     let safeAllQuestions = [];
@@ -549,7 +548,6 @@ html, body {
             questionNotes[id] = val;
         }
         
-        // Update the button text live
         const btn = document.querySelector('.btn-note');
         if (val.trim() !== '') {
             btn.classList.add('active');
@@ -560,7 +558,7 @@ html, body {
         }
         
         scheduleSave();
-        updateScore(); // Refresh the notebook counter
+        updateScore(); 
     };
 
     window.pickAnswer = function(cardId, chosen, correct) {
@@ -569,11 +567,9 @@ html, body {
         
         if (chosen === correct) {
             sessionCorrect++;
-            // FIXED: We NO LONGER delete from wrongBank here. 
-            // If they got it wrong previously, it stays permanently in the wrongBank!
+            // Note: We no longer delete from wrongBank here, making errors permanent until manually reset.
         } else {
             sessionWrong++;
-            // If it's a new mistake, add it to the wrongBank permanently
             if (!wrongBank.includes(cardId)) {
                 wrongBank.push(cardId);
             }
@@ -626,13 +622,12 @@ html, body {
     window.closeSidebar = function() { document.getElementById('sidebar').classList.remove('open'); document.getElementById('sidebar-backdrop').classList.remove('open'); };
 
     window.showNotebookPanel = function() {
-        // 1. Build Notes List
         const notedIds = Object.keys(questionNotes);
         const notesContainer = document.getElementById('notes-list-container');
         document.getElementById('notes-list-title').textContent = `My Saved Notes (${notedIds.length})`;
         
         if (notedIds.length === 0) {
-            notesContainer.innerHTML = `<div class="wq-empty">No notes yet. Click the 📝 icon on any question to add a note.</div>`;
+            notesContainer.innerHTML = `<div class="wq-empty">No notes yet. Click the 📝 Add Note button on any question to begin.</div>`;
         } else {
             let notesHtml = ``;
             notedIds.forEach(id => {
@@ -648,7 +643,6 @@ html, body {
             notesContainer.innerHTML = notesHtml;
         }
 
-        // 2. Build Permanent Wrong Bank List
         const wrongCards = safeAllQuestions.filter(c => wrongBank.includes(c.id));
         const wbContainer = document.getElementById('wrong-bank-list');
         document.getElementById('wrong-bank-title').textContent = `Permanent Wrong Bank (${wrongCards.length})`;
@@ -682,8 +676,6 @@ html, body {
         const wrongCards = safeAllQuestions.filter(c => wrongBank.includes(c.id));
         if (!wrongCards.length) return;
         
-        // This clears them from the current active session so you can answer them again.
-        // It DOES NOT clear them from the permanent `wrongBank` array.
         wrongCards.forEach(c => delete mcqAnswers[c.id]);
         deck = shuffleMode ? shuffleArray(wrongCards) : wrongCards;
         idx = 0; filterLecture = null; filterSource = ''; recalculateSessionScore();
@@ -702,24 +694,57 @@ html, body {
     window.showStats = function() {
         const allAns = Object.keys(mcqAnswers).length, correct = safeAllQuestions.filter(c => mcqAnswers[c.id] === c.ans).length, wrong = allAns - correct;
         const lectures = [...new Set(safeAllQuestions.map(c => c.lecture))].sort();
+        
         let html = `<div class="stats-grid"><div class="stat-box total"><div class="val">${allAns}</div><div class="lbl">Answered</div></div><div class="stat-box correct"><div class="val">${correct}</div><div class="lbl">Correct</div></div><div class="stat-box wrong"><div class="val">${wrongBank.length}</div><div class="lbl">In Wrong Bank</div></div></div><div class="section-title">By Lecture</div>`;
+        
         lectures.forEach(lec => {
             const lCards = safeAllQuestions.filter(c => c.lecture === lec);
             const lAns = lCards.filter(c => mcqAnswers[c.id]).length, lCor = lCards.filter(c => mcqAnswers[c.id] === c.ans).length;
             const pct = lCards.length ? Math.round(lAns / lCards.length * 100) : 0;
             html += `<div class="lec-bar-row"><span class="lec-bar-name">${esc(lec)}</span><div class="lec-bar-track"><div class="lec-bar-fill" style="width:${pct}%"></div></div><span class="lec-bar-pct">${lCor}/${lCards.length}</span></div>`;
         });
+
+        // NEW: Danger Zone (Selective Reset Options)
+        html += `
+        <div class="section-title" style="margin-top:25px; color:var(--red); border-bottom-color:var(--red-dim);">Danger Zone (Reset Data)</div>
+        <div style="display:flex; flex-direction:column; gap:10px; margin-bottom:10px;">
+            <button class="choice-btn" style="border-color:var(--red-dim); color:var(--red); justify-content:center;" onclick="clearSpecific('answers')">Reset Answers Only (Keep Notes & Wrong Bank)</button>
+            <button class="choice-btn" style="border-color:var(--red-dim); color:var(--red); justify-content:center;" onclick="clearSpecific('wrong')">Reset Wrong Bank Only</button>
+            <button class="choice-btn" style="border-color:var(--red-dim); color:var(--red); justify-content:center;" onclick="clearSpecific('notes')">Reset Notes Only</button>
+            <button class="choice-btn" style="background:var(--red-dim); border-color:var(--red); color:var(--red); justify-content:center; font-weight:bold;" onclick="clearSpecific('all')">Reset Everything</button>
+        </div>`;
+
         document.getElementById('stats-body').innerHTML = html;
         document.getElementById('stats-overlay').classList.add('visible');
     };
     window.closeStats = function() { document.getElementById('stats-overlay').classList.remove('visible'); };
 
-    window.clearProgress = function() {
-        if (!confirm('Reset all saved progress? This clears answers, NOTES, and your Wrong Bank.')) return;
-        mcqAnswers = {}; wrongBank = []; questionNotes = {};
-        recalculateSessionScore(); closeStats(); loadDeck(); toast('Progress reset');
-        try { localStorage.removeItem(LS_KEY); } catch(e){}
-        if (window._saveToFirebase) window._saveToFirebase({ mcqAnswers: {}, wrongBank: [], questionNotes: {}, cleared: true });
+    // NEW: Function to handle targeted progress resets
+    window.clearSpecific = function(type) {
+        let msg = "";
+        if (type === 'answers') {
+            if (!confirm('Reset all your answered questions? Your notes and wrong bank will be kept.')) return;
+            mcqAnswers = {};
+            msg = "Answers reset!";
+        } else if (type === 'wrong') {
+            if (!confirm('Clear your permanent Wrong Bank?')) return;
+            wrongBank = [];
+            msg = "Wrong bank cleared!";
+        } else if (type === 'notes') {
+            if (!confirm('Delete ALL your saved notes? This cannot be undone.')) return;
+            questionNotes = {};
+            msg = "Notes deleted!";
+        } else if (type === 'all') {
+            if (!confirm('Wipe EVERYTHING? Answers, notes, and wrong bank will be permanently deleted.')) return;
+            mcqAnswers = {}; wrongBank = []; questionNotes = {};
+            msg = "All progress reset!";
+        }
+
+        recalculateSessionScore();
+        loadDeck(true); 
+        showStats(); 
+        toast(msg);
+        scheduleSave();
     };
 
     function scheduleSave() {
@@ -832,7 +857,6 @@ html, body {
         finally { b.textContent = "Register"; }
     });
 
-    // Handle Google Login Button Clicks
     document.querySelectorAll(".googleLoginBtn").forEach(btn => {
         btn.addEventListener("click", async () => {
             try {
