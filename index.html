@@ -1,1338 +1,483 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>OBG Question Bank — MU-MED 40</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Sora:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OBG Question Bank — MU-MED 40</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Sora:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 
-<!-- Firebase -->
-<script type="module">
-  import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut } 
-    from "https://www.gstatic.com/firebasejs/12.11.0/firebase-auth.js";
-  import { getFirestore, doc, setDoc, getDoc } 
-    from "https://www.gstatic.com/firebasejs/12.11.0/firebase-firestore.js";
-  import { initializeApp } 
-    from "https://www.gstatic.com/firebasejs/12.11.0/firebase-app.js";
+    <style>
+        :root {
+            --bg: #0d1117;
+            --bg2: #161b22;
+            --bg3: #1c2330;
+            --border: #30363d;
+            --border2: #21262d;
+            --text: #e6edf3;
+            --text2: #8b949e;
+            --text3: #484f58;
+            --teal: #2dd4bf;
+            --teal-dim: rgba(45,212,191,0.12);
+            --teal-dim2: rgba(45,212,191,0.06);
+            --red: #f87171;
+            --red-dim: rgba(248,113,113,0.12);
+            --green: #4ade80;
+            --green-dim: rgba(74,222,128,0.12);
+            --yellow: #fbbf24;
+            --yellow-dim: rgba(251,191,36,0.1);
+            --radius: 10px;
+            --mono: 'DM Mono', monospace;
+            --sans: 'Sora', sans-serif;
+            --sidebar-w: 260px;
+            --header-h: 56px;
+        }
 
-  const firebaseConfig = {
-    apiKey: "AIzaSyBjN5mvWufrfGMW8eDZKAwrVa2dAIt0Yu0",
-    authDomain: "obg-e5d67.firebaseapp.com",
-    projectId: "obg-e5d67",
-    storageBucket: "obg-e5d67.firebasestorage.app",
-    messagingSenderId: "575965796689",
-    appId: "1:575965796689:web:2d2aea412a04672c275b70",
-    measurementId: "G-1GG7FJCBJ2"
-  };
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-  const app = initializeApp(firebaseConfig);
-  const auth = getAuth(app);
-  const db = getFirestore(app);
+        html, body {
+            height: 100%;
+            background: var(--bg);
+            color: var(--text);
+            font-family: var(--sans);
+            font-size: 15px;
+            line-height: 1.6;
+            overflow: hidden;
+        }
 
-  // Sign Up
-  document.getElementById("signupForm").addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const email = document.getElementById("signupEmail").value;
-    const password = document.getElementById("signupPassword").value;
-    try {
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      alert("Signed up: " + userCredential.user.email);
-    } catch (error) {
-      alert(error.message);
-    }
-  });
+        /* --- AUTH SCREEN --- */
+        .auth-container {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            background: var(--bg);
+            padding: 20px;
+        }
+        .auth-card {
+            background: var(--bg2);
+            padding: 32px;
+            border-radius: 16px;
+            border: 1px solid var(--border);
+            width: 100%;
+            max-width: 400px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+        }
+        .auth-card h2 { margin-bottom: 24px; text-align: center; font-weight: 600; }
+        .auth-card input {
+            width: 100%;
+            padding: 12px 16px;
+            margin-bottom: 12px;
+            background: var(--bg3);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text);
+        }
+        .auth-toggle {
+            margin-top: 20px;
+            text-align: center;
+            font-size: 13px;
+            color: var(--teal);
+            cursor: pointer;
+            text-decoration: underline;
+        }
 
-  // Sign In
-  document.getElementById("loginForm").addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const email = document.getElementById("email").value;
-    const password = document.getElementById("password").value;
-    try {
-      const userCredential = await signInWithEmailAndPassword(auth, email, password);
-      alert("Signed in: " + userCredential.user.email);
-    } catch (error) {
-      alert(error.message);
-    }
-  });
+        /* --- APP LAYOUT --- */
+        .app { display: none; height: 100vh; overflow: hidden; }
 
-  // Log Out
-  document.getElementById("logoutBtn").addEventListener("click", async () => {
-    await signOut(auth);
-    alert("Logged out");
-  });
+        .sidebar {
+            width: var(--sidebar-w);
+            background: var(--bg2);
+            border-right: 1px solid var(--border2);
+            display: flex;
+            flex-direction: column;
+            flex-shrink: 0;
+            overflow: hidden;
+        }
+        .sb-header { padding: 16px 16px 12px; border-bottom: 1px solid var(--border2); }
+        .sb-logo { font-family: var(--mono); font-size: 11px; color: var(--teal); letter-spacing: .12em; text-transform: uppercase; margin-bottom: 4px; }
+        .sb-title { font-size: 13px; font-weight: 600; color: var(--text); }
+        .sb-count { font-family: var(--mono); font-size: 11px; color: var(--text3); margin-top: 2px; }
+        .sb-scroll { flex: 1; overflow-y: auto; padding: 8px 0; }
+        .sb-scroll::-webkit-scrollbar { width: 4px; }
+        .sb-scroll::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+        .sb-section-label { font-family: var(--mono); font-size: 10px; color: var(--text3); letter-spacing: .1em; text-transform: uppercase; padding: 10px 16px 4px; }
+        .sb-item { display: flex; align-items: center; justify-content: space-between; padding: 7px 16px; cursor: pointer; transition: background .15s; border-left: 2px solid transparent; gap: 8px; }
+        .sb-item:hover { background: var(--bg3); }
+        .sb-item.active { background: var(--teal-dim2); border-left-color: var(--teal); }
+        .sb-item-name { font-size: 12.5px; color: var(--text2); line-height: 1.3; flex: 1; min-width: 0; }
+        .sb-item.active .sb-item-name { color: var(--text); }
+        .sb-item-cnt { font-family: var(--mono); font-size: 11px; color: var(--text3); background: var(--bg3); padding: 1px 6px; border-radius: 3px; flex-shrink: 0; }
+        .sb-item.active .sb-item-cnt { color: var(--teal); background: var(--teal-dim); }
+        .sb-all { border-bottom: 1px solid var(--border2); margin-bottom: 4px; }
+        .sb-all .sb-item-name { font-weight: 600; color: var(--text); font-size: 13px; }
 
-  // Save Progress Example
-  async function saveProgress(score) {
-    const user = auth.currentUser;
-    if (user) {
-      await setDoc(doc(db, "progress", user.uid), { score: score });
-      alert("Progress saved!");
-    }
-  }
+        .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
+        .topbar { height: var(--header-h); background: var(--bg2); border-bottom: 1px solid var(--border2); display: flex; align-items: center; padding: 0 20px; gap: 12px; flex-shrink: 0; }
+        .topbar-title { font-size: 13px; font-weight: 600; color: var(--text); flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .topbar-meta { font-family: var(--mono); font-size: 11px; color: var(--text3); white-space: nowrap; }
+        .btn-icon { background: none; border: 1px solid var(--border); color: var(--text2); padding: 5px 10px; border-radius: 6px; font-size: 12px; cursor: pointer; transition: all .15s; white-space: nowrap; font-family: var(--sans); display: flex; align-items: center; gap: 5px; }
+        .btn-icon:hover { border-color: var(--teal); color: var(--teal); }
+        .btn-icon.active { background: var(--teal-dim); border-color: var(--teal); color: var(--teal); }
 
-  // Load Progress Example
-  async function loadProgress() {
-    const user = auth.currentUser;
-    if (user) {
-      const docSnap = await getDoc(doc(db, "progress", user.uid));
-      if (docSnap.exists()) {
-        alert("Progress: " + JSON.stringify(docSnap.data()));
-      } else {
-        alert("No progress found");
-      }
-    }
-  }
-</script>
+        .filters-bar { padding: 10px 20px; border-bottom: 1px solid var(--border2); display: flex; gap: 8px; align-items: center; flex-wrap: wrap; background: var(--bg); flex-shrink: 0; }
+        .filter-label { font-family: var(--mono); font-size: 10px; color: var(--text3); letter-spacing: .08em; text-transform: uppercase; }
+        .filter-btn { background: var(--bg2); border: 1px solid var(--border2); color: var(--text2); padding: 4px 10px; border-radius: 5px; font-size: 11.5px; cursor: pointer; transition: all .15s; font-family: var(--sans); }
+        .filter-btn:hover { border-color: var(--border); color: var(--text); }
+        .filter-btn.active { background: var(--teal-dim); border-color: var(--teal); color: var(--teal); }
+        .filter-sep { width: 1px; height: 18px; background: var(--border2); margin: 0 4px; }
 
+        .progress-strip { height: 3px; background: var(--bg3); flex-shrink: 0; position: relative; }
+        .progress-fill { height: 100%; background: var(--teal); transition: width .4s ease; border-radius: 0 2px 2px 0; }
 
+        .card-area { flex: 1; overflow-y: auto; padding: 28px 24px; display: flex; flex-direction: column; align-items: center; }
+        .card-area::-webkit-scrollbar { width: 5px; }
+        .card-area::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
 
+        .question-card { width: 100%; max-width: 720px; background: var(--bg2); border: 1px solid var(--border2); border-radius: 14px; overflow: hidden; animation: cardIn .2s ease; }
+        @keyframes cardIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
 
-<style>
-:root {
-  --bg: #0d1117;
-  --bg2: #161b22;
-  --bg3: #1c2330;
-  --border: #30363d;
-  --border2: #21262d;
-  --text: #e6edf3;
-  --text2: #8b949e;
-  --text3: #484f58;
-  --teal: #2dd4bf;
-  --teal-dim: rgba(45,212,191,0.12);
-  --teal-dim2: rgba(45,212,191,0.06);
-  --red: #f87171;
-  --red-dim: rgba(248,113,113,0.12);
-  --green: #4ade80;
-  --green-dim: rgba(74,222,128,0.12);
-  --yellow: #fbbf24;
-  --yellow-dim: rgba(251,191,36,0.1);
-  --radius: 10px;
-  --mono: 'DM Mono', monospace;
-  --sans: 'Sora', sans-serif;
-  --sidebar-w: 260px;
-  --header-h: 56px;
-}
+        .card-header { padding: 14px 20px; border-bottom: 1px solid var(--border2); display: flex; align-items: center; gap: 10px; background: var(--bg3); }
+        .card-qnum { font-family: var(--mono); font-size: 12px; color: var(--teal); background: var(--teal-dim); padding: 2px 8px; border-radius: 4px; }
+        .card-source { font-family: var(--mono); font-size: 10.5px; color: var(--text3); background: var(--bg2); padding: 2px 7px; border-radius: 4px; border: 1px solid var(--border2); }
+        .card-lecture { font-size: 11.5px; color: var(--text3); margin-left: auto; text-align: right; max-width: 200px; line-height: 1.3; }
+        .card-stem { padding: 22px 22px 16px; font-size: 15.5px; font-weight: 500; color: var(--text); line-height: 1.65; direction: auto; }
 
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        .choices { padding: 0 22px 20px; display: flex; flex-direction: column; gap: 8px; }
+        .choice-btn { display: flex; align-items: flex-start; gap: 12px; padding: 12px 14px; background: var(--bg3); border: 1px solid var(--border2); border-radius: 8px; cursor: pointer; transition: all .15s; text-align: left; width: 100%; font-family: var(--sans); color: var(--text2); font-size: 14px; line-height: 1.5; }
+        .choice-btn:hover:not(.locked) { border-color: var(--border); color: var(--text); background: var(--bg2); }
+        .choice-btn.locked { cursor: default; }
+        .choice-letter { font-family: var(--mono); font-size: 12px; color: var(--text3); background: var(--bg2); border: 1px solid var(--border2); border-radius: 4px; padding: 1px 7px; flex-shrink: 0; margin-top: 1px; min-width: 28px; text-align: center; }
+        .choice-btn.correct-answer { border-color: var(--green); background: var(--green-dim); color: var(--text); }
+        .choice-btn.correct-answer .choice-letter { background: var(--green); color: #0d1117; border-color: var(--green); font-weight: 600; }
+        .choice-btn.wrong-answer { border-color: var(--red); background: var(--red-dim); color: var(--text2); }
+        .choice-btn.wrong-answer .choice-letter { background: var(--red); color: #0d1117; border-color: var(--red); font-weight: 600; }
 
-html, body {
-  height: 100%;
-  background: var(--bg);
-  color: var(--text);
-  font-family: var(--sans);
-  font-size: 15px;
-  line-height: 1.6;
-  overflow: hidden;
-}
+        .result-banner { margin: 0 22px 16px; padding: 10px 16px; border-radius: 8px; font-size: 13.5px; font-weight: 500; display: none; }
+        .result-banner.correct { background: var(--green-dim); color: var(--green); border: 1px solid rgba(74,222,128,.25); display: block; }
+        .result-banner.wrong { background: var(--red-dim); color: var(--red); border: 1px solid rgba(248,113,113,.25); display: block; }
 
-/* ── LAYOUT ─────────────────────────────── */
-.app { display: flex; height: 100vh; overflow: hidden; }
+        .card-note-inline { margin: 0 22px 16px; padding: 10px 14px; background: var(--teal-dim2); border-left: 3px solid var(--teal); border-radius: 0 6px 6px 0; font-size: 12.5px; color: var(--text2); display: none; }
+        .card-note-inline.show { display: block; }
 
-/* ── SIDEBAR ─────────────────────────────── */
-.sidebar {
-  width: var(--sidebar-w);
-  background: var(--bg2);
-  border-right: 1px solid var(--border2);
-  display: flex;
-  flex-direction: column;
-  flex-shrink: 0;
-  overflow: hidden;
-}
-.sb-header {
-  padding: 16px 16px 12px;
-  border-bottom: 1px solid var(--border2);
-}
-.sb-logo {
-  font-family: var(--mono);
-  font-size: 11px;
-  color: var(--teal);
-  letter-spacing: .12em;
-  text-transform: uppercase;
-  margin-bottom: 4px;
-}
-.sb-title { font-size: 13px; font-weight: 600; color: var(--text); }
-.sb-count { font-family: var(--mono); font-size: 11px; color: var(--text3); margin-top: 2px; }
+        .nav-footer { flex-shrink: 0; padding: 12px 20px; background: var(--bg2); border-top: 1px solid var(--border2); display: flex; align-items: center; gap: 10px; }
+        .nav-btn { background: var(--bg3); border: 1px solid var(--border2); color: var(--text2); padding: 7px 18px; border-radius: 7px; font-size: 13px; cursor: pointer; transition: all .15s; font-family: var(--sans); }
+        .nav-btn:hover:not(:disabled) { border-color: var(--border); color: var(--text); }
+        .nav-btn:disabled { opacity: .3; cursor: default; }
+        .nav-counter { font-family: var(--mono); font-size: 12px; color: var(--text3); min-width: 70px; text-align: center; }
+        .nav-spacer { flex: 1; }
+        .nav-score { font-family: var(--mono); font-size: 12px; color: var(--text3); }
+        .score-correct { color: var(--green); }
+        .score-wrong { color: var(--red); }
 
-.sb-scroll { flex: 1; overflow-y: auto; padding: 8px 0; }
-.sb-scroll::-webkit-scrollbar { width: 4px; }
-.sb-scroll::-webkit-scrollbar-track { background: transparent; }
-.sb-scroll::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+        /* Panels & Overlays */
+        .overlay { position: fixed; inset: 0; background: rgba(0,0,0,.7); backdrop-filter: blur(4px); z-index: 100; display: flex; align-items: center; justify-content: center; opacity: 0; pointer-events: none; transition: opacity .2s; }
+        .overlay.visible { opacity: 1; pointer-events: all; }
+        .panel { background: var(--bg2); border: 1px solid var(--border); border-radius: 16px; width: 90%; max-width: 680px; max-height: 85vh; display: flex; flex-direction: column; overflow: hidden; }
+        .panel-header { padding: 18px 22px; border-bottom: 1px solid var(--border2); display: flex; align-items: center; justify-content: space-between; }
+        .panel-close { background: none; border: none; color: var(--text3); font-size: 20px; cursor: pointer; padding: 0 4px; }
+        .panel-body { flex: 1; overflow-y: auto; padding: 16px 22px; }
+        .panel-footer { padding: 14px 22px; border-top: 1px solid var(--border2); display: flex; gap: 10px; justify-content: flex-end; }
 
-.sb-section-label {
-  font-family: var(--mono);
-  font-size: 10px;
-  color: var(--text3);
-  letter-spacing: .1em;
-  text-transform: uppercase;
-  padding: 10px 16px 4px;
-}
+        .sync-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--text3); flex-shrink: 0; transition: background .3s; }
+        .sync-dot.synced { background: var(--green); }
+        .sync-dot.syncing { background: var(--yellow); animation: pulse 1s infinite; }
+        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
 
-.sb-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 7px 16px;
-  cursor: pointer;
-  transition: background .15s;
-  border-left: 2px solid transparent;
-  gap: 8px;
-}
-.sb-item:hover { background: var(--bg3); }
-.sb-item.active {
-  background: var(--teal-dim2);
-  border-left-color: var(--teal);
-}
-.sb-item-name {
-  font-size: 12.5px;
-  color: var(--text2);
-  line-height: 1.3;
-  flex: 1;
-  min-width: 0;
-}
-.sb-item.active .sb-item-name { color: var(--text); }
-.sb-item-cnt {
-  font-family: var(--mono);
-  font-size: 11px;
-  color: var(--text3);
-  background: var(--bg3);
-  padding: 1px 6px;
-  border-radius: 3px;
-  flex-shrink: 0;
-}
-.sb-item.active .sb-item-cnt { color: var(--teal); background: var(--teal-dim); }
-
-.sb-all {
-  border-bottom: 1px solid var(--border2);
-  margin-bottom: 4px;
-}
-.sb-all .sb-item-name { font-weight: 600; color: var(--text); font-size: 13px; }
-
-/* ── MAIN ─────────────────────────────── */
-.main {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  min-width: 0;
-}
-
-/* ── TOPBAR ─────────────────────────────── */
-.topbar {
-  height: var(--header-h);
-  background: var(--bg2);
-  border-bottom: 1px solid var(--border2);
-  display: flex;
-  align-items: center;
-  padding: 0 20px;
-  gap: 12px;
-  flex-shrink: 0;
-}
-.topbar-title {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text);
-  flex: 1;
-  min-width: 0;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.topbar-meta {
-  font-family: var(--mono);
-  font-size: 11px;
-  color: var(--text3);
-  white-space: nowrap;
-}
-.btn-icon {
-  background: none;
-  border: 1px solid var(--border);
-  color: var(--text2);
-  padding: 5px 10px;
-  border-radius: 6px;
-  font-size: 12px;
-  cursor: pointer;
-  transition: all .15s;
-  white-space: nowrap;
-  font-family: var(--sans);
-  display: flex;
-  align-items: center;
-  gap: 5px;
-}
-.btn-icon:hover { border-color: var(--teal); color: var(--teal); }
-.btn-icon.active { background: var(--teal-dim); border-color: var(--teal); color: var(--teal); }
-
-/* ── FILTERS BAR ─────────────────────────────── */
-.filters-bar {
-  padding: 10px 20px;
-  border-bottom: 1px solid var(--border2);
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  flex-wrap: wrap;
-  background: var(--bg);
-  flex-shrink: 0;
-}
-.filter-label { font-family: var(--mono); font-size: 10px; color: var(--text3); letter-spacing: .08em; text-transform: uppercase; }
-.filter-btn {
-  background: var(--bg2);
-  border: 1px solid var(--border2);
-  color: var(--text2);
-  padding: 4px 10px;
-  border-radius: 5px;
-  font-size: 11.5px;
-  cursor: pointer;
-  transition: all .15s;
-  font-family: var(--sans);
-}
-.filter-btn:hover { border-color: var(--border); color: var(--text); }
-.filter-btn.active { background: var(--teal-dim); border-color: var(--teal); color: var(--teal); }
-.filter-sep { width: 1px; height: 18px; background: var(--border2); margin: 0 4px; }
-
-/* ── PROGRESS BAR ─────────────────────────────── */
-.progress-strip {
-  height: 3px;
-  background: var(--bg3);
-  flex-shrink: 0;
-  position: relative;
-}
-.progress-fill {
-  height: 100%;
-  background: var(--teal);
-  transition: width .4s ease;
-  border-radius: 0 2px 2px 0;
-}
-
-/* ── CARD AREA ─────────────────────────────── */
-.card-area {
-  flex: 1;
-  overflow-y: auto;
-  padding: 28px 24px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
-.card-area::-webkit-scrollbar { width: 5px; }
-.card-area::-webkit-scrollbar-track { background: transparent; }
-.card-area::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
-
-.question-card {
-  width: 100%;
-  max-width: 720px;
-  background: var(--bg2);
-  border: 1px solid var(--border2);
-  border-radius: 14px;
-  overflow: hidden;
-  animation: cardIn .2s ease;
-}
-@keyframes cardIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
-
-.card-header {
-  padding: 14px 20px;
-  border-bottom: 1px solid var(--border2);
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  background: var(--bg3);
-}
-.card-qnum {
-  font-family: var(--mono);
-  font-size: 12px;
-  color: var(--teal);
-  background: var(--teal-dim);
-  padding: 2px 8px;
-  border-radius: 4px;
-}
-.card-source {
-  font-family: var(--mono);
-  font-size: 10.5px;
-  color: var(--text3);
-  background: var(--bg2);
-  padding: 2px 7px;
-  border-radius: 4px;
-  border: 1px solid var(--border2);
-}
-.card-lecture {
-  font-size: 11.5px;
-  color: var(--text3);
-  margin-left: auto;
-  text-align: right;
-  max-width: 200px;
-  line-height: 1.3;
-}
-
-.card-stem {
-  padding: 22px 22px 16px;
-  font-size: 15.5px;
-  font-weight: 500;
-  color: var(--text);
-  line-height: 1.65;
-  direction: auto;
-}
-
-.card-note {
-  margin: 0 22px 14px;
-  padding: 10px 14px;
-  background: var(--yellow-dim);
-  border-left: 3px solid var(--yellow);
-  border-radius: 0 6px 6px 0;
-  font-size: 12.5px;
-  color: var(--text2);
-  line-height: 1.5;
-}
-
-.choices {
-  padding: 0 22px 20px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.choice-btn {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  padding: 12px 14px;
-  background: var(--bg3);
-  border: 1px solid var(--border2);
-  border-radius: 8px;
-  cursor: pointer;
-  transition: all .15s;
-  text-align: left;
-  width: 100%;
-  font-family: var(--sans);
-  color: var(--text2);
-  font-size: 14px;
-  line-height: 1.5;
-}
-.choice-btn:hover:not(.locked) {
-  border-color: var(--border);
-  color: var(--text);
-  background: var(--bg2);
-}
-.choice-btn.locked { cursor: default; }
-.choice-letter {
-  font-family: var(--mono);
-  font-size: 12px;
-  color: var(--text3);
-  background: var(--bg2);
-  border: 1px solid var(--border2);
-  border-radius: 4px;
-  padding: 1px 7px;
-  flex-shrink: 0;
-  margin-top: 1px;
-  min-width: 28px;
-  text-align: center;
-  transition: all .15s;
-}
-.choice-btn.correct-answer {
-  border-color: var(--green);
-  background: var(--green-dim);
-  color: var(--text);
-}
-.choice-btn.correct-answer .choice-letter { background: var(--green); color: #0d1117; border-color: var(--green); font-weight: 600; }
-.choice-btn.wrong-answer {
-  border-color: var(--red);
-  background: var(--red-dim);
-  color: var(--text2);
-}
-.choice-btn.wrong-answer .choice-letter { background: var(--red); color: #0d1117; border-color: var(--red); font-weight: 600; }
-.choice-btn.reveal-correct { border-color: var(--green); background: var(--green-dim); }
-.choice-btn.reveal-correct .choice-letter { background: var(--green); color: #0d1117; border-color: var(--green); }
-
-.result-banner {
-  margin: 0 22px 16px;
-  padding: 10px 16px;
-  border-radius: 8px;
-  font-size: 13.5px;
-  font-weight: 500;
-  display: none;
-}
-.result-banner.correct { background: var(--green-dim); color: var(--green); border: 1px solid rgba(74,222,128,.25); display: block; }
-.result-banner.wrong { background: var(--red-dim); color: var(--red); border: 1px solid rgba(248,113,113,.25); display: block; }
-
-.card-note-inline {
-  margin: 0 22px 16px;
-  padding: 10px 14px;
-  background: var(--teal-dim2);
-  border-left: 3px solid var(--teal);
-  border-radius: 0 6px 6px 0;
-  font-size: 12.5px;
-  color: var(--text2);
-  display: none;
-}
-.card-note-inline.show { display: block; }
-
-/* ── NAV FOOTER ─────────────────────────────── */
-.nav-footer {
-  flex-shrink: 0;
-  padding: 12px 20px;
-  background: var(--bg2);
-  border-top: 1px solid var(--border2);
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-.nav-btn {
-  background: var(--bg3);
-  border: 1px solid var(--border2);
-  color: var(--text2);
-  padding: 7px 18px;
-  border-radius: 7px;
-  font-size: 13px;
-  cursor: pointer;
-  transition: all .15s;
-  font-family: var(--sans);
-}
-.nav-btn:hover:not(:disabled) { border-color: var(--border); color: var(--text); }
-.nav-btn:disabled { opacity: .3; cursor: default; }
-.nav-counter {
-  font-family: var(--mono);
-  font-size: 12px;
-  color: var(--text3);
-  min-width: 70px;
-  text-align: center;
-}
-.nav-spacer { flex: 1; }
-.nav-score {
-  font-family: var(--mono);
-  font-size: 12px;
-  color: var(--text3);
-}
-.score-correct { color: var(--green); }
-.score-wrong { color: var(--red); }
-
-/* ── EMPTY STATE ─────────────────────────────── */
-.empty-state {
-  text-align: center;
-  padding: 60px 20px;
-  color: var(--text3);
-}
-.empty-state h3 { font-size: 18px; color: var(--text2); margin-bottom: 8px; }
-.empty-state p { font-size: 13px; margin-bottom: 16px; }
-.btn-primary {
-  background: var(--teal);
-  color: #0d1117;
-  border: none;
-  padding: 8px 20px;
-  border-radius: 7px;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  font-family: var(--sans);
-  transition: opacity .15s;
-}
-.btn-primary:hover { opacity: .85; }
-
-/* ── WRONG ANSWERS PANEL ─────────────────────────────── */
-.overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0,0,0,.7);
-  backdrop-filter: blur(4px);
-  z-index: 100;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity .2s;
-}
-.overlay.visible { opacity: 1; pointer-events: all; }
-
-.panel {
-  background: var(--bg2);
-  border: 1px solid var(--border);
-  border-radius: 16px;
-  width: 90%;
-  max-width: 680px;
-  max-height: 85vh;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-.panel-header {
-  padding: 18px 22px;
-  border-bottom: 1px solid var(--border2);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-.panel-header h2 { font-size: 16px; font-weight: 600; }
-.panel-close {
-  background: none;
-  border: none;
-  color: var(--text3);
-  font-size: 20px;
-  cursor: pointer;
-  padding: 0 4px;
-  transition: color .15s;
-}
-.panel-close:hover { color: var(--text); }
-.panel-body { flex: 1; overflow-y: auto; padding: 16px 22px; }
-.panel-body::-webkit-scrollbar { width: 4px; }
-.panel-body::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
-.panel-footer { padding: 14px 22px; border-top: 1px solid var(--border2); display: flex; gap: 10px; justify-content: flex-end; }
-
-/* Stats summary inside panel */
-.stats-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 10px;
-  margin-bottom: 20px;
-}
-.stat-box {
-  background: var(--bg3);
-  border: 1px solid var(--border2);
-  border-radius: 8px;
-  padding: 12px;
-  text-align: center;
-}
-.stat-box .val {
-  font-family: var(--mono);
-  font-size: 22px;
-  font-weight: 500;
-  line-height: 1;
-  margin-bottom: 4px;
-}
-.stat-box .lbl { font-size: 11px; color: var(--text3); }
-.stat-box.correct .val { color: var(--green); }
-.stat-box.wrong .val { color: var(--red); }
-.stat-box.total .val { color: var(--teal); }
-
-/* Per-lecture breakdown */
-.lec-bar-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 8px;
-}
-.lec-bar-name {
-  font-size: 11.5px;
-  color: var(--text2);
-  width: 180px;
-  flex-shrink: 0;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.lec-bar-track {
-  flex: 1;
-  height: 6px;
-  background: var(--bg3);
-  border-radius: 3px;
-  overflow: hidden;
-}
-.lec-bar-fill {
-  height: 100%;
-  background: var(--teal);
-  border-radius: 3px;
-  transition: width .5s ease;
-}
-.lec-bar-pct {
-  font-family: var(--mono);
-  font-size: 10.5px;
-  color: var(--text3);
-  width: 48px;
-  text-align: right;
-  flex-shrink: 0;
-}
-
-.section-title {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text3);
-  letter-spacing: .08em;
-  text-transform: uppercase;
-  font-family: var(--mono);
-  margin: 20px 0 10px;
-}
-
-/* Wrong question list */
-.wq-item {
-  background: var(--bg3);
-  border: 1px solid var(--border2);
-  border-radius: 8px;
-  padding: 12px 14px;
-  margin-bottom: 8px;
-  cursor: pointer;
-  transition: border-color .15s;
-}
-.wq-item:hover { border-color: var(--teal); }
-.wq-meta {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  margin-bottom: 5px;
-}
-.wq-num { font-family: var(--mono); font-size: 11px; color: var(--teal); }
-.wq-lec { font-size: 11px; color: var(--text3); }
-.wq-stem { font-size: 13px; color: var(--text); margin-bottom: 8px; line-height: 1.4; }
-.wq-answers {
-  display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-.wq-your { font-size: 12px; color: var(--red); background: var(--red-dim); padding: 2px 8px; border-radius: 4px; }
-.wq-correct { font-size: 12px; color: var(--green); background: var(--green-dim); padding: 2px 8px; border-radius: 4px; }
-.wq-empty { text-align: center; padding: 40px; color: var(--text3); font-size: 13px; }
-
-/* ── TOAST ─────────────────────────────── */
-.toast {
-  position: fixed;
-  bottom: 24px;
-  left: 50%;
-  transform: translateX(-50%) translateY(10px);
-  background: var(--bg3);
-  border: 1px solid var(--border);
-  color: var(--text);
-  padding: 9px 18px;
-  border-radius: 8px;
-  font-size: 13px;
-  opacity: 0;
-  pointer-events: none;
-  transition: all .25s;
-  z-index: 200;
-  white-space: nowrap;
-}
-.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
-
-/* ── MOBILE HAMBURGER ─────────────────────────────── */
-.hamburger { display: none; }
-.sidebar-backdrop {
-  display: none;
-  position: fixed;
-  inset: 0;
-  background: rgba(0,0,0,.6);
-  z-index: 49;
-}
-
-@media (max-width: 768px) {
-  .sidebar {
-    position: fixed;
-    left: -var(--sidebar-w);
-    top: 0;
-    height: 100%;
-    z-index: 50;
-    transform: translateX(-100%);
-    transition: transform .25s ease;
-  }
-  .sidebar.open { transform: translateX(0); }
-  .sidebar-backdrop.open { display: block; }
-  .hamburger { display: flex; }
-  .card-area { padding: 16px 14px; }
-  .card-stem { font-size: 14.5px; }
-  .stats-grid { grid-template-columns: repeat(3, 1fr); }
-  .lec-bar-name { width: 120px; }
-}
-
-/* ── SYNC INDICATOR ─────────────────────────────── */
-.sync-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--text3);
-  flex-shrink: 0;
-  transition: background .3s;
-}
-.sync-dot.synced { background: var(--green); }
-.sync-dot.syncing { background: var(--yellow); animation: pulse 1s infinite; }
-.sync-dot.error { background: var(--red); }
-@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
-
-/* ── SHUFFLE ACTIVE ─────────────────────────────── */
-.btn-icon.shuffle-on { background: var(--teal-dim); border-color: var(--teal); color: var(--teal); }
-</style>
+        .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(10px); background: var(--bg3); border: 1px solid var(--border); color: var(--text); padding: 9px 18px; border-radius: 8px; font-size: 13px; opacity: 0; pointer-events: none; transition: all .25s; z-index: 200; }
+        .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+        
+        .hamburger { display: none; }
+        @media (max-width: 768px) {
+            .sidebar { position: fixed; left: -var(--sidebar-w); top: 0; height: 100%; z-index: 50; transform: translateX(-100%); transition: transform .25s ease; }
+            .sidebar.open { transform: translateX(0); }
+            .hamburger { display: flex; }
+        }
+    </style>
 </head>
 <body>
 
-<h2>Login</h2>
-  <form id="loginForm">
-    <input type="email" id="email" placeholder="Email" required>
-    <input type="password" id="password" placeholder="Password" required>
-    <button type="submit">Sign In</button>
-  </form>
-
-  <h2>Sign Up</h2>
-  <form id="signupForm">
-    <input type="email" id="signupEmail" placeholder="Email" required>
-    <input type="password" id="signupPassword" placeholder="Password" required>
-    <button type="submit">Sign Up</button>
-  </form>
-
-  <button id="logoutBtn">Log Out</button>
-
-<div class="app">
-
-  <!-- SIDEBAR -->
-  <aside class="sidebar" id="sidebar">
-    <div class="sb-header">
-      <div class="sb-logo">MU-MED 40 · OBG</div>
-      <div class="sb-title">Question Bank</div>
-      <div class="sb-count" id="sb-total-count">716 MCQs · 14 Lectures</div>
-    </div>
-    <div class="sb-scroll">
-      <div class="sb-section-label">Lectures</div>
-      <ul id="sb-list" style="list-style:none"></ul>
-    </div>
-  </aside>
-  <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeSidebar()"></div>
-
-  <!-- MAIN -->
-  <div class="main">
-
-    <!-- TOPBAR -->
-    <div class="topbar">
-      <button class="btn-icon hamburger" onclick="toggleSidebar()">☰</button>
-      <div class="topbar-title" id="deck-title">All Questions</div>
-      <div class="topbar-meta" id="deck-meta">—</div>
-      <button class="btn-icon" onclick="toggleShuffle(this)" id="btn-shuffle" title="Shuffle">⇌ Shuffle</button>
-      <button class="btn-icon" onclick="showWrongPanel()" id="btn-wrong" title="Review wrong answers">✗ Wrong</button>
-      <button class="btn-icon" onclick="showStats()" title="Statistics">◎ Stats</button>
-      <div class="sync-dot" id="sync-dot" title="Sync status"></div>
-    </div>
-
-    <!-- FILTERS -->
-    <div class="filters-bar">
-      <span class="filter-label">Source:</span>
-      <button class="filter-btn active" data-src="" onclick="setSource(this,'')">All</button>
-      <button class="filter-btn" data-src="Old Formatives" onclick="setSource(this,'Old Formatives')">Old Form.</button>
-      <button class="filter-btn" data-src="New Formatives" onclick="setSource(this,'New Formatives')">New Form.</button>
-      <button class="filter-btn" data-src="Previous Exams" onclick="setSource(this,'Previous Exams')">Prev. Exam</button>
-      <div class="filter-sep"></div>
-      <span class="filter-label">Order:</span>
-      <button class="filter-btn active" data-order="random" onclick="setOrder(this,'random')">Random</button>
-      <button class="filter-btn" data-order="sequential" onclick="setOrder(this,'sequential')">Sequential</button>
-    </div>
-
-    <!-- PROGRESS -->
-    <div class="progress-strip"><div class="progress-fill" id="prog-fill" style="width:0%"></div></div>
-
-    <!-- CARD AREA -->
-    <div class="card-area" id="card-area">
-      <div id="card-stage"></div>
-    </div>
-
-    <!-- NAV FOOTER -->
-    <div class="nav-footer">
-      <button class="nav-btn" id="btn-prev" onclick="prevCard()" disabled>← Prev</button>
-      <div class="nav-counter" id="nav-ctr">— / —</div>
-      <button class="nav-btn" id="btn-next" onclick="nextCard()" disabled>Next →</button>
-      <div class="nav-spacer"></div>
-      <div class="nav-score" id="nav-score">
-        <span class="score-correct" id="score-c">0</span> correct ·
-        <span class="score-wrong" id="score-w">0</span> wrong
-      </div>
-    </div>
-
-  </div>
-</div>
-
-<!-- WRONG ANSWERS PANEL -->
-<div class="overlay" id="wrong-overlay">
-  <div class="panel">
-    <div class="panel-header">
-      <h2>Wrong Answers Review</h2>
-      <button class="panel-close" onclick="closeWrongPanel()">×</button>
-    </div>
-    <div class="panel-body" id="wrong-panel-body"></div>
-    <div class="panel-footer">
-      <button class="btn-icon" onclick="closeWrongPanel()">Close</button>
-      <button class="btn-primary" id="practice-wrong-btn" onclick="practiceWrong()">Practice Wrong</button>
-    </div>
-  </div>
-</div>
-
-<!-- STATS PANEL -->
-<div class="overlay" id="stats-overlay">
-  <div class="panel">
-    <div class="panel-header">
-      <h2>Progress Statistics</h2>
-      <button class="panel-close" onclick="closeStats()">×</button>
-    </div>
-    <div class="panel-body" id="stats-body"></div>
-    <div class="panel-footer">
-      <button class="btn-icon" style="color:var(--red);border-color:var(--red)" onclick="clearProgress()">Reset Progress</button>
-      <button class="btn-primary" onclick="closeStats()">Close</button>
-    </div>
-  </div>
-</div>
-
-<div class="toast" id="toast"></div>
-
-<!-- QUESTION DATA -->
-<script src="questions_data.js"></script>
-
-<script>
-// ── STATE ──────────────────────────────────────────
-let deck = [];
-let idx = 0;
-let shuffleMode = true;
-let filterLecture = null;
-let filterSource = '';
-let mcqAnswers = {}; // id -> chosen letter
-let sessionCorrect = 0;
-let sessionWrong = 0;
-let syncTimeout = null;
-
-// ── SOURCE HELPERS ──────────────────────────────────────────
-function sourceGroup(src) {
-  const s = String(src || '').toLowerCase();
-  if (s.includes('new formative')) return 'New Formatives';
-  if (s.includes('old formative')) return 'Old Formatives';
-  if (s.includes('previous exam') || s.includes('prev exam') || s.includes('mu-med')) return 'Previous Exams';
-  return '';
-}
-
-function sourceLabel(src) {
-  const s = String(src || '').toLowerCase();
-  if (s.includes('new formative')) return 'New Form.';
-  if (s.includes('old formative')) return 'Old Form.';
-  if (s.includes('previous exam') || s.includes('mu-med')) return 'Prev. Exam';
-  if (s.includes('lecture')) return 'Lecture Q';
-  return src ? src.split('/')[0].trim().substring(0, 20) : '—';
-}
-
-// ── BUILD DECK ──────────────────────────────────────────
-function buildDeck() {
-  let cards = ALL_QUESTIONS.slice();
-  if (filterLecture) cards = cards.filter(c => c.lecture === filterLecture);
-  if (filterSource) cards = cards.filter(c => sourceGroup(c.source) === filterSource);
-  if (shuffleMode) cards = shuffle(cards);
-  return cards;
-}
-
-function shuffle(arr) {
-  const a = arr.slice();
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [a[i], a[j]] = [a[j], a[i]];
-  }
-  return a;
-}
-
-function loadDeck(keepIdx = false) {
-  const newDeck = buildDeck();
-  deck = newDeck;
-  if (!keepIdx) idx = 0;
-  else idx = Math.min(idx, deck.length - 1);
-  sessionCorrect = 0;
-  sessionWrong = 0;
-  updateTitle();
-  updateMeta();
-  renderCard();
-  updateNav();
-  updateScore();
-}
-
-// ── RENDER ──────────────────────────────────────────
-function renderCard() {
-  const stage = document.getElementById('card-stage');
-  if (!deck.length) {
-    stage.innerHTML = `<div class="empty-state"><h3>No questions found</h3><p>Try changing your filters.</p><button class="btn-primary" onclick="clearFilters()">Clear Filters</button></div>`;
-    updateProgress(0, 0);
-    return;
-  }
-
-  const c = deck[idx];
-  const answered = mcqAnswers[c.id];
-  const letters = ['A','B','C','D','E','F'];
-
-  const choicesHTML = (c.choices || []).map((ch, i) => {
-    const l = letters[i];
-    let cls = 'choice-btn';
-    if (answered) {
-      cls += ' locked';
-      if (l === c.ans) cls += ' correct-answer';
-      else if (l === answered) cls += ' wrong-answer';
-    }
-    return `<button class="${cls}" onclick="pick('${c.id}','${l}','${c.ans}')">
-      <span class="choice-letter">${l}</span>
-      <span>${esc(ch)}</span>
-    </button>`;
-  }).join('');
-
-  let resultHTML = '';
-  if (answered) {
-    if (answered === c.ans) {
-      resultHTML = `<div class="result-banner correct">✓ Correct!</div>`;
-    } else {
-      resultHTML = `<div class="result-banner wrong">✗ Incorrect — correct answer: <strong>${c.ans}</strong></div>`;
-    }
-  }
-
-  let noteHTML = '';
-  if (c.note && answered) {
-    noteHTML = `<div class="card-note-inline show">📝 ${esc(c.note)}</div>`;
-  }
-
-  stage.innerHTML = `<div class="question-card">
-    <div class="card-header">
-      <span class="card-qnum">${esc(c.num)}</span>
-      <span class="card-source">${sourceLabel(c.source)}</span>
-      <span class="card-lecture">${esc(c.lecture)}</span>
-    </div>
-    <div class="card-stem">${esc(c.q)}</div>
-    <div class="choices">${choicesHTML}</div>
-    ${resultHTML}
-    ${noteHTML}
-  </div>`;
-
-  updateProgress(idx + 1, deck.length);
-}
-
-function pick(cardId, chosen, correct) {
-  if (mcqAnswers[cardId]) return; // already answered
-  mcqAnswers[cardId] = chosen;
-  if (chosen === correct) sessionCorrect++;
-  else sessionWrong++;
-  updateScore();
-  renderCard();
-  scheduleSave();
-}
-
-// ── NAVIGATION ──────────────────────────────────────────
-function nextCard() {
-  if (idx < deck.length - 1) { idx++; renderCard(); updateNav(); }
-}
-function prevCard() {
-  if (idx > 0) { idx--; renderCard(); updateNav(); }
-}
-function updateNav() {
-  document.getElementById('btn-prev').disabled = idx <= 0;
-  document.getElementById('btn-next').disabled = idx >= deck.length - 1;
-  document.getElementById('nav-ctr').textContent = deck.length ? `${idx + 1} / ${deck.length}` : '— / —';
-}
-function updateProgress(cur, total) {
-  const pct = total ? Math.round(cur / total * 100) : 0;
-  document.getElementById('prog-fill').style.width = pct + '%';
-}
-function updateScore() {
-  document.getElementById('score-c').textContent = sessionCorrect;
-  document.getElementById('score-w').textContent = sessionWrong;
-  // update wrong button badge
-  const wrong = Object.entries(mcqAnswers).filter(([id, ans]) => {
-    const c = ALL_QUESTIONS.find(q => q.id === id);
-    return c && ans !== c.ans;
-  });
-  document.getElementById('btn-wrong').textContent = `✗ Wrong${wrong.length ? ' ('+wrong.length+')' : ''}`;
-}
-function updateTitle() {
-  const title = filterLecture || 'All Questions';
-  document.getElementById('deck-title').textContent = title + (filterSource ? ' · ' + filterSource : '');
-}
-function updateMeta() {
-  document.getElementById('deck-meta').textContent = `${deck.length} questions`;
-}
-
-// ── FILTERS ──────────────────────────────────────────
-function setSource(btn, src) {
-  filterSource = src;
-  document.querySelectorAll('[data-src]').forEach(b => b.classList.toggle('active', b.dataset.src === src));
-  loadDeck();
-}
-function setOrder(btn, order) {
-  shuffleMode = order === 'random';
-  document.querySelectorAll('[data-order]').forEach(b => b.classList.toggle('active', b.dataset.order === order));
-  loadDeck();
-}
-function toggleShuffle(btn) {
-  shuffleMode = !shuffleMode;
-  btn.classList.toggle('shuffle-on', shuffleMode);
-  btn.textContent = shuffleMode ? '⇌ Shuffle ON' : '⇌ Shuffle OFF';
-  // sync order buttons
-  document.querySelectorAll('[data-order]').forEach(b => b.classList.toggle('active', b.dataset.order === (shuffleMode ? 'random' : 'sequential')));
-  loadDeck();
-}
-function clearFilters() {
-  filterLecture = null;
-  filterSource = '';
-  document.querySelectorAll('[data-src]').forEach(b => b.classList.toggle('active', b.dataset.src === ''));
-  buildSidebar();
-  loadDeck();
-}
-
-// ── SIDEBAR ──────────────────────────────────────────
-function buildSidebar() {
-  const list = document.getElementById('sb-list');
-  const lectures = [...new Set(ALL_QUESTIONS.map(c => c.lecture))].sort();
-  const counts = {};
-  ALL_QUESTIONS.forEach(c => { counts[c.lecture] = (counts[c.lecture] || 0) + 1; });
-
-  let html = `<li class="sb-item sb-all ${!filterLecture ? 'active' : ''}" onclick="selectLecture(null)">
-    <span class="sb-item-name">All Lectures</span>
-    <span class="sb-item-cnt">${ALL_QUESTIONS.length}</span>
-  </li>`;
-
-  lectures.forEach(lec => {
-    const active = filterLecture === lec;
-    html += `<li class="sb-item ${active ? 'active' : ''}" onclick="selectLecture('${esc(lec)}')">
-      <span class="sb-item-name">${esc(lec)}</span>
-      <span class="sb-item-cnt">${counts[lec] || 0}</span>
-    </li>`;
-  });
-  list.innerHTML = html;
-}
-
-function selectLecture(lec) {
-  filterLecture = lec;
-  buildSidebar();
-  loadDeck();
-  if (window.innerWidth < 768) closeSidebar();
-}
-
-function toggleSidebar() {
-  document.getElementById('sidebar').classList.toggle('open');
-  document.getElementById('sidebar-backdrop').classList.toggle('open');
-}
-function closeSidebar() {
-  document.getElementById('sidebar').classList.remove('open');
-  document.getElementById('sidebar-backdrop').classList.remove('open');
-}
-
-// ── WRONG ANSWERS ──────────────────────────────────────────
-function showWrongPanel() {
-  const wrongCards = ALL_QUESTIONS.filter(c => mcqAnswers[c.id] && mcqAnswers[c.id] !== c.ans);
-  const body = document.getElementById('wrong-panel-body');
-
-  if (!wrongCards.length) {
-    body.innerHTML = `<div class="wq-empty">🎉 No wrong answers yet — keep going!</div>`;
-    document.getElementById('practice-wrong-btn').disabled = true;
-    document.getElementById('practice-wrong-btn').textContent = 'No Wrong Answers';
-  } else {
-    document.getElementById('practice-wrong-btn').disabled = false;
-    document.getElementById('practice-wrong-btn').textContent = `Practice ${wrongCards.length} Wrong Question${wrongCards.length > 1 ? 's' : ''}`;
-
-    // Group by lecture
-    const byLecture = {};
-    wrongCards.forEach(c => {
-      if (!byLecture[c.lecture]) byLecture[c.lecture] = [];
-      byLecture[c.lecture].push(c);
-    });
-
-    let html = `<div class="stats-grid">
-      <div class="stat-box wrong"><div class="val">${wrongCards.length}</div><div class="lbl">Wrong</div></div>
-      <div class="stat-box correct"><div class="val">${Object.keys(mcqAnswers).length - wrongCards.length}</div><div class="lbl">Correct</div></div>
-      <div class="stat-box total"><div class="val">${Object.keys(mcqAnswers).length}</div><div class="lbl">Answered</div></div>
-    </div>`;
-
-    html += `<div class="section-title">Wrong Questions (${wrongCards.length})</div>`;
-
-    wrongCards.forEach(c => {
-      const your = c.choices[(mcqAnswers[c.id] || 'A').charCodeAt(0) - 65] || mcqAnswers[c.id];
-      const correct = c.choices[(c.ans || 'A').charCodeAt(0) - 65] || c.ans;
-      const stem = c.q.length > 120 ? c.q.substring(0, 120) + '…' : c.q;
-      html += `<div class="wq-item" onclick="goToCard('${c.id}')">
-        <div class="wq-meta">
-          <span class="wq-num">${esc(c.num)}</span>
-          <span class="wq-lec">${esc(c.lecture)}</span>
+    <div id="auth-screen" class="auth-container">
+        <div class="auth-card" id="login-section">
+            <div class="sb-logo" style="text-align:center; margin-bottom:10px;">MU-MED 40</div>
+            <h2>Login</h2>
+            <form id="loginForm">
+                <input type="email" id="email" placeholder="Email" required>
+                <input type="password" id="password" placeholder="Password" required>
+                <button type="submit" class="btn-primary">Sign In</button>
+            </form>
+            <div class="auth-toggle" onclick="toggleAuth(true)">Don't have an account? Sign up</div>
         </div>
-        <div class="wq-stem">${esc(stem)}</div>
-        <div class="wq-answers">
-          <span class="wq-your">✗ ${mcqAnswers[c.id]}) ${esc(your.substring(0, 50))}</span>
-          <span class="wq-correct">✓ ${c.ans}) ${esc(correct.substring(0, 50))}</span>
+
+        <div class="auth-card" id="signup-section" style="display:none;">
+            <div class="sb-logo" style="text-align:center; margin-bottom:10px;">MU-MED 40</div>
+            <h2>Create Account</h2>
+            <form id="signupForm">
+                <input type="email" id="signupEmail" placeholder="Email" required>
+                <input type="password" id="signupPassword" placeholder="Password" required>
+                <button type="submit" class="btn-primary">Register</button>
+            </form>
+            <div class="auth-toggle" onclick="toggleAuth(false)">Already have an account? Login</div>
         </div>
-      </div>`;
-    });
-    body.innerHTML = html;
-  }
-  document.getElementById('wrong-overlay').classList.add('visible');
-}
+    </div>
 
-function closeWrongPanel() {
-  document.getElementById('wrong-overlay').classList.remove('visible');
-}
+    <div class="app" id="main-app">
+        <aside class="sidebar" id="sidebar">
+            <div class="sb-header">
+                <div class="sb-logo">MU-MED 40 · OBG</div>
+                <div class="sb-title">Question Bank</div>
+                <div class="sb-count" id="sb-total-count">0 MCQs · 0 Lectures</div>
+            </div>
+            <div class="sb-scroll">
+                <div class="sb-section-label">Lectures</div>
+                <ul id="sb-list" style="list-style:none"></ul>
+            </div>
+        </aside>
 
-function practiceWrong() {
-  const wrongCards = ALL_QUESTIONS.filter(c => mcqAnswers[c.id] && mcqAnswers[c.id] !== c.ans);
-  if (!wrongCards.length) return;
-  // Reset answers for wrong cards so they can be re-answered
-  wrongCards.forEach(c => delete mcqAnswers[c.id]);
-  deck = shuffleMode ? shuffle(wrongCards) : wrongCards;
-  idx = 0;
-  sessionCorrect = 0;
-  sessionWrong = 0;
-  filterLecture = null;
-  filterSource = '';
-  document.getElementById('deck-title').textContent = `Practice: ${wrongCards.length} Wrong Questions`;
-  document.getElementById('deck-meta').textContent = `${wrongCards.length} questions`;
-  buildSidebar();
-  closeWrongPanel();
-  renderCard(); updateNav(); updateScore();
-  toast('Practicing ' + wrongCards.length + ' wrong question' + (wrongCards.length > 1 ? 's' : ''));
-  scheduleSave();
-}
+        <div class="main">
+            <div class="topbar">
+                <button class="btn-icon hamburger" onclick="toggleSidebar()">☰</button>
+                <div class="topbar-title" id="deck-title">All Questions</div>
+                <div class="topbar-meta" id="deck-meta">—</div>
+                <button class="btn-icon" onclick="toggleShuffle(this)" id="btn-shuffle">⇌ Shuffle</button>
+                <button class="btn-icon" onclick="showWrongPanel()" id="btn-wrong">✗ Wrong</button>
+                <button class="btn-icon" onclick="showStats()">◎ Stats</button>
+                <button class="btn-icon" id="logoutBtn" style="color:var(--red); border-color:var(--red-dim)">Logout</button>
+                <div class="sync-dot" id="sync-dot"></div>
+            </div>
 
-function goToCard(cardId) {
-  const c = ALL_QUESTIONS.find(q => q.id === cardId);
-  if (!c) return;
-  // Load the lecture containing this card
-  filterLecture = c.lecture;
-  filterSource = '';
-  deck = buildDeck();
-  const di = deck.findIndex(q => q.id === cardId);
-  idx = di !== -1 ? di : 0;
-  buildSidebar();
-  closeWrongPanel();
-  updateTitle(); updateMeta();
-  renderCard(); updateNav(); updateScore();
-}
+            <div class="filters-bar">
+                <span class="filter-label">Source:</span>
+                <button class="filter-btn active" data-src="" onclick="setSource(this,'')">All</button>
+                <button class="filter-btn" data-src="Old Formatives" onclick="setSource(this,'Old Formatives')">Old Form.</button>
+                <button class="filter-btn" data-src="New Formatives" onclick="setSource(this,'New Formatives')">New Form.</button>
+                <button class="filter-btn" data-src="Previous Exams" onclick="setSource(this,'Previous Exams')">Prev. Exam</button>
+                <div class="filter-sep"></div>
+                <span class="filter-label">Order:</span>
+                <button class="filter-btn active" data-order="random" onclick="setOrder(this,'random')">Random</button>
+                <button class="filter-btn" data-order="sequential" onclick="setOrder(this,'sequential')">Sequential</button>
+            </div>
 
-// ── STATS ──────────────────────────────────────────
-function showStats() {
-  const allAnswered = Object.keys(mcqAnswers).length;
-  const correct = ALL_QUESTIONS.filter(c => mcqAnswers[c.id] === c.ans).length;
-  const wrong = allAnswered - correct;
-  const lectures = [...new Set(ALL_QUESTIONS.map(c => c.lecture))].sort();
+            <div class="progress-strip"><div class="progress-fill" id="prog-fill" style="width:0%"></div></div>
 
-  let html = `<div class="stats-grid">
-    <div class="stat-box total"><div class="val">${allAnswered}</div><div class="lbl">Answered</div></div>
-    <div class="stat-box correct"><div class="val">${correct}</div><div class="lbl">Correct</div></div>
-    <div class="stat-box wrong"><div class="val">${wrong}</div><div class="lbl">Wrong</div></div>
-  </div>`;
+            <div class="card-area" id="card-area">
+                <div id="card-stage"></div>
+            </div>
 
-  html += `<div class="section-title">By Lecture</div>`;
-  lectures.forEach(lec => {
-    const lCards = ALL_QUESTIONS.filter(c => c.lecture === lec);
-    const lAns = lCards.filter(c => mcqAnswers[c.id]).length;
-    const lCorrect = lCards.filter(c => mcqAnswers[c.id] === c.ans).length;
-    const pct = lCards.length ? Math.round(lAns / lCards.length * 100) : 0;
-    html += `<div class="lec-bar-row">
-      <span class="lec-bar-name" title="${esc(lec)}">${esc(lec)}</span>
-      <div class="lec-bar-track"><div class="lec-bar-fill" style="width:${pct}%"></div></div>
-      <span class="lec-bar-pct">${lCorrect}/${lCards.length}</span>
-    </div>`;
-  });
+            <div class="nav-footer">
+                <button class="nav-btn" id="btn-prev" onclick="prevCard()" disabled>← Prev</button>
+                <div class="nav-counter" id="nav-ctr">— / —</div>
+                <button class="nav-btn" id="btn-next" onclick="nextCard()" disabled>Next →</button>
+                <div class="nav-spacer"></div>
+                <div class="nav-score">
+                    <span class="score-correct" id="score-c">0</span> correct ·
+                    <span class="score-wrong" id="score-w">0</span> wrong
+                </div>
+            </div>
+        </div>
+    </div>
 
-  document.getElementById('stats-body').innerHTML = html;
-  document.getElementById('stats-overlay').classList.add('visible');
-}
-function closeStats() { document.getElementById('stats-overlay').classList.remove('visible'); }
+    <div class="overlay" id="wrong-overlay">
+        <div class="panel">
+            <div class="panel-header"><h2>Wrong Answers Review</h2><button class="panel-close" onclick="closeWrongPanel()">×</button></div>
+            <div id="wrong-panel-body" class="panel-body"></div>
+            <div class="panel-footer"><button class="btn-primary" id="practice-wrong-btn" onclick="practiceWrong()">Practice Wrong</button></div>
+        </div>
+    </div>
 
-// ── PROGRESS SAVE/LOAD ──────────────────────────────────────────
-const LS_KEY = 'obg_progress_v2';
+    <div class="overlay" id="stats-overlay">
+        <div class="panel">
+            <div class="panel-header"><h2>Statistics</h2><button class="panel-close" onclick="closeStats()">×</button></div>
+            <div id="stats-body" class="panel-body"></div>
+            <div class="panel-footer"><button class="btn-icon" style="color:var(--red)" onclick="clearProgress()">Reset</button></div>
+        </div>
+    </div>
 
-function getProgressData() {
-  return { mcqAnswers, filterLecture, filterSource, shuffleMode, idx };
-}
+    <div class="toast" id="toast"></div>
 
-function scheduleSave() {
-  setSyncDot('syncing');
-  clearTimeout(syncTimeout);
-  syncTimeout = setTimeout(async () => {
-    const data = getProgressData();
-    try {
-      localStorage.setItem(LS_KEY, JSON.stringify(data));
-    } catch(e) {}
-    if (window._saveToFirebase) {
-      await window._saveToFirebase(data);
-    }
-    setSyncDot('synced');
-    setTimeout(() => setSyncDot(''), 3000);
-  }, 1000);
-}
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-app.js";
+        import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-auth.js";
+        import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-firestore.js";
 
-function setSyncDot(state) {
-  const dot = document.getElementById('sync-dot');
-  dot.className = 'sync-dot' + (state ? ' ' + state : '');
-  dot.title = state === 'synced' ? 'Saved' : state === 'syncing' ? 'Saving…' : state === 'error' ? 'Save failed' : 'Sync';
-}
+        const firebaseConfig = {
+            apiKey: "AIzaSyBjN5mvWufrfGMW8eDZKAwrVa2dAIt0Yu0",
+            authDomain: "obg-e5d67.firebaseapp.com",
+            projectId: "obg-e5d67",
+            storageBucket: "obg-e5d67.firebasestorage.app",
+            messagingSenderId: "575965796689",
+            appId: "1:575965796689:web:2d2aea412a04672c275b70"
+        };
 
-async function loadProgress() {
-  let data = null;
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
 
-  // Try Firebase first
-  if (window._loadFromFirebase) {
-    try {
-      data = await window._loadFromFirebase();
-    } catch(e) {}
-  }
+        // Auth Observer
+        onAuthStateChanged(auth, async (user) => {
+            const authScreen = document.getElementById("auth-screen");
+            const mainApp = document.getElementById("main-app");
+            if (user) {
+                authScreen.style.display = "none";
+                mainApp.style.display = "flex";
+                await loadProgress();
+            } else {
+                authScreen.style.display = "flex";
+                mainApp.style.display = "none";
+            }
+        });
 
-  // Fallback to localStorage
-  if (!data) {
-    try {
-      const raw = localStorage.getItem(LS_KEY);
-      if (raw) data = JSON.parse(raw);
-    } catch(e) {}
-  }
+        // Event Listeners
+        document.getElementById("loginForm").addEventListener("submit", e => {
+            e.preventDefault();
+            signInWithEmailAndPassword(auth, document.getElementById("email").value, document.getElementById("password").value).catch(err => alert(err.message));
+        });
 
-  if (data) {
-    mcqAnswers = data.mcqAnswers || {};
-    filterLecture = data.filterLecture || null;
-    filterSource = data.filterSource || '';
-    shuffleMode = data.shuffleMode !== undefined ? data.shuffleMode : true;
-    const savedIdx = data.idx || 0;
+        document.getElementById("signupForm").addEventListener("submit", e => {
+            e.preventDefault();
+            createUserWithEmailAndPassword(auth, document.getElementById("signupEmail").value, document.getElementById("signupPassword").value).catch(err => alert(err.message));
+        });
 
-    // sync UI
-    document.querySelectorAll('[data-src]').forEach(b => b.classList.toggle('active', b.dataset.src === filterSource));
-    document.querySelectorAll('[data-order]').forEach(b => b.classList.toggle('active', b.dataset.order === (shuffleMode ? 'random' : 'sequential')));
-    const shuffleBtn = document.getElementById('btn-shuffle');
-    if (shuffleBtn) { shuffleBtn.classList.toggle('shuffle-on', shuffleMode); shuffleBtn.textContent = shuffleMode ? '⇌ Shuffle ON' : '⇌ Shuffle OFF'; }
+        document.getElementById("logoutBtn").addEventListener("click", () => signOut(auth));
 
-    buildSidebar();
-    deck = buildDeck();
-    idx = Math.min(savedIdx, Math.max(0, deck.length - 1));
-    updateTitle(); updateMeta();
-  } else {
-    buildSidebar();
-    deck = buildDeck();
-  }
+        window.toggleAuth = (showSignup) => {
+            document.getElementById("login-section").style.display = showSignup ? "none" : "block";
+            document.getElementById("signup-section").style.display = showSignup ? "block" : "none";
+        };
 
-  renderCard(); updateNav(); updateScore();
-}
+        // Firebase Sync Helpers
+        window._saveToFirebase = async (data) => {
+            if (auth.currentUser) {
+                await setDoc(doc(db, "users", auth.currentUser.uid), data, { merge: true });
+            }
+        };
 
-function clearProgress() {
-  if (!confirm('Reset all saved progress? This cannot be undone.')) return;
-  mcqAnswers = {};
-  sessionCorrect = 0;
-  sessionWrong = 0;
-  localStorage.removeItem(LS_KEY);
-  if (window._saveToFirebase) window._saveToFirebase({ mcqAnswers: {}, cleared: true });
-  closeStats();
-  loadDeck();
-  toast('Progress reset');
-}
+        window._loadFromFirebase = async () => {
+            if (auth.currentUser) {
+                const snap = await getDoc(doc(db, "users", auth.currentUser.uid));
+                return snap.exists() ? snap.data() : null;
+            }
+            return null;
+        };
+    </script>
 
-// ── KEYBOARD ──────────────────────────────────────────
-document.addEventListener('keydown', e => {
-  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
-  if (e.code === 'ArrowRight') nextCard();
-  if (e.code === 'ArrowLeft') prevCard();
-  // A-E to pick answer
-  const key = e.key.toUpperCase();
-  if (['A','B','C','D','E'].includes(key) && deck[idx] && !mcqAnswers[deck[idx].id]) {
-    const c = deck[idx];
-    const letters = ['A','B','C','D','E'];
-    if (letters.indexOf(key) < (c.choices || []).length) {
-      pick(c.id, key, c.ans);
-    }
-  }
-});
+    <script src="questions_data.js"></script>
+    <script>
+        let deck = [], idx = 0, shuffleMode = true, filterLecture = null, filterSource = '';
+        let mcqAnswers = {}, sessionCorrect = 0, sessionWrong = 0, syncTimeout = null;
 
-// ── SWIPE ──────────────────────────────────────────
-let touchStartX = 0;
-document.getElementById('card-area').addEventListener('touchstart', e => { touchStartX = e.touches[0].clientX; }, { passive: true });
-document.getElementById('card-area').addEventListener('touchend', e => {
-  const dx = e.changedTouches[0].clientX - touchStartX;
-  if (Math.abs(dx) > 60) { if (dx < 0) nextCard(); else prevCard(); }
-});
+        function buildDeck() {
+            let cards = (typeof ALL_QUESTIONS !== 'undefined') ? ALL_QUESTIONS.slice() : [];
+            if (filterLecture) cards = cards.filter(c => c.lecture === filterLecture);
+            if (filterSource) cards = cards.filter(c => sourceGroup(c.source) === filterSource);
+            return shuffleMode ? shuffle(cards) : cards;
+        }
 
-// ── HELPERS ──────────────────────────────────────────
-function esc(s) { return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+        function shuffle(a) {
+            for (let i = a.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [a[i], a[j]] = [a[j], a[i]];
+            }
+            return a;
+        }
 
-function toast(msg) {
-  const el = document.getElementById('toast');
-  el.textContent = msg;
-  el.classList.add('show');
-  setTimeout(() => el.classList.remove('show'), 2500);
-}
+        function sourceGroup(src) {
+            const s = String(src || '').toLowerCase();
+            if (s.includes('new formative')) return 'New Formatives';
+            if (s.includes('old formative')) return 'Old Formatives';
+            if (s.includes('previous') || s.includes('mu-med')) return 'Previous Exams';
+            return '';
+        }
 
-// ── INIT ──────────────────────────────────────────
-loadProgress();
-window.addEventListener('pagehide', () => {
-  const data = getProgressData();
-  try { localStorage.setItem(LS_KEY, JSON.stringify(data)); } catch(e) {}
-});
-</script>
+        function renderCard() {
+            const stage = document.getElementById('card-stage');
+            if (!deck.length) {
+                stage.innerHTML = `<div class="empty-state"><h3>No questions</h3></div>`;
+                return;
+            }
+            const c = deck[idx];
+            const answered = mcqAnswers[c.id];
+            const letters = ['A','B','C','D','E'];
+
+            const choicesHTML = (c.choices || []).map((ch, i) => {
+                const l = letters[i];
+                let cls = 'choice-btn' + (answered ? ' locked' : '');
+                if (answered) {
+                    if (l === c.ans) cls += ' correct-answer';
+                    else if (l === answered) cls += ' wrong-answer';
+                }
+                return `<button class="${cls}" onclick="pick('${c.id}','${l}','${c.ans}')"><span class="choice-letter">${l}</span><span>${esc(ch)}</span></button>`;
+            }).join('');
+
+            stage.innerHTML = `
+                <div class="question-card">
+                    <div class="card-header"><span class="card-qnum">${c.num}</span><span class="card-lecture">${c.lecture}</span></div>
+                    <div class="card-stem">${esc(c.q)}</div>
+                    <div class="choices">${choicesHTML}</div>
+                    ${answered ? `<div class="result-banner ${answered===c.ans?'correct':'wrong'}">${answered===c.ans?'✓ Correct':'✗ Correct: '+c.ans}</div>` : ''}
+                </div>`;
+            updateNav();
+        }
+
+        function pick(id, chosen, correct) {
+            if (mcqAnswers[id]) return;
+            mcqAnswers[id] = chosen;
+            if (chosen === correct) sessionCorrect++; else sessionWrong++;
+            renderCard(); updateScore(); scheduleSave();
+        }
+
+        function updateNav() {
+            document.getElementById('btn-prev').disabled = idx <= 0;
+            document.getElementById('btn-next').disabled = idx >= deck.length - 1;
+            document.getElementById('nav-ctr').textContent = `${idx + 1} / ${deck.length}`;
+            document.getElementById('prog-fill').style.width = (deck.length ? ((idx+1)/deck.length)*100 : 0) + '%';
+        }
+
+        function updateScore() {
+            document.getElementById('score-c').textContent = sessionCorrect;
+            document.getElementById('score-w').textContent = sessionWrong;
+        }
+
+        function nextCard() { if (idx < deck.length - 1) { idx++; renderCard(); } }
+        function prevCard() { if (idx > 0) { idx--; renderCard(); } }
+
+        async function scheduleSave() {
+            const dot = document.getElementById('sync-dot');
+            dot.className = 'sync-dot syncing';
+            clearTimeout(syncTimeout);
+            syncTimeout = setTimeout(async () => {
+                if (window._saveToFirebase) await window._saveToFirebase({ mcqAnswers, idx });
+                dot.className = 'sync-dot synced';
+            }, 1000);
+        }
+
+        async function loadProgress() {
+            const data = window._loadFromFirebase ? await window._loadFromFirebase() : null;
+            if (data) { mcqAnswers = data.mcqAnswers || {}; idx = data.idx || 0; }
+            if (typeof ALL_QUESTIONS !== 'undefined') {
+                document.getElementById('sb-total-count').textContent = `${ALL_QUESTIONS.length} MCQs`;
+                buildSidebar();
+            }
+            deck = buildDeck();
+            renderCard();
+        }
+
+        function buildSidebar() {
+            const list = document.getElementById('sb-list');
+            const lecs = [...new Set(ALL_QUESTIONS.map(q => q.lecture))].sort();
+            list.innerHTML = `<li class="sb-item sb-all ${!filterLecture?'active':''}" onclick="filterLec(null)">All Lectures</li>` + 
+                lecs.map(l => `<li class="sb-item ${filterLecture===l?'active':''}" onclick="filterLec('${l}')">${l}</li>`).join('');
+        }
+
+        function filterLec(l) { filterLecture = l; buildSidebar(); deck = buildDeck(); idx = 0; renderCard(); }
+        function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;'); }
+        function toggleSidebar() { document.getElementById('sidebar').classList.toggle('open'); }
+        
+        // Modal Handlers
+        function showStats() { document.getElementById('stats-overlay').classList.add('visible'); }
+        function closeStats() { document.getElementById('stats-overlay').classList.remove('visible'); }
+        function showWrongPanel() { document.getElementById('wrong-overlay').classList.add('visible'); }
+        function closeWrongPanel() { document.getElementById('wrong-overlay').classList.remove('visible'); }
+    </script>
 </body>
 </html>
