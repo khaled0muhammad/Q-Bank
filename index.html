@@ -9,291 +9,140 @@
 
     <style>
         :root {
-            --bg: #0d1117;
-            --bg2: #161b22;
-            --bg3: #1c2330;
-            --border: #30363d;
-            --border2: #21262d;
-            --text: #e6edf3;
-            --text2: #8b949e;
-            --text3: #484f58;
-            --teal: #2dd4bf;
-            --teal-dim: rgba(45,212,191,0.12);
+            --bg: #0d1117; --bg2: #161b22; --bg3: #1c2330;
+            --border: #30363d; --border2: #21262d;
+            --text: #e6edf3; --text2: #8b949e; --text3: #484f58;
+            --teal: #2dd4bf; --teal-dim: rgba(45,212,191,0.12);
             --teal-dim2: rgba(45,212,191,0.06);
-            --red: #f87171;
-            --red-dim: rgba(248,113,113,0.12);
-            --green: #4ade80;
-            --green-dim: rgba(74,222,128,0.12);
-            --yellow: #fbbf24;
-            --yellow-dim: rgba(251,191,36,0.1);
-            --radius: 10px;
-            --mono: 'DM Mono', monospace;
-            --sans: 'Sora', sans-serif;
-            --sidebar-w: 260px;
-            --header-h: 56px;
+            --red: #f87171; --red-dim: rgba(248,113,113,0.12);
+            --green: #4ade80; --green-dim: rgba(74,222,128,0.12);
+            --yellow: #fbbf24; --yellow-dim: rgba(251,191,36,0.1);
+            --mono: 'DM Mono', monospace; --sans: 'Sora', sans-serif;
+            --sidebar-w: 260px; --header-h: 56px;
         }
 
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-        html, body {
-            height: 100%;
-            background: var(--bg);
-            color: var(--text);
-            font-family: var(--sans);
-            font-size: 15px;
-            line-height: 1.6;
-            overflow: hidden;
-        }
+        html, body { height: 100%; background: var(--bg); color: var(--text); font-family: var(--sans); font-size: 15px; overflow: hidden; }
 
         /* --- AUTH SCREEN --- */
-        .auth-container {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            height: 100vh;
-            background: var(--bg);
-            padding: 20px;
-        }
-        .auth-card {
-            background: var(--bg2);
-            padding: 32px;
-            border-radius: 16px;
-            border: 1px solid var(--border);
-            width: 100%;
-            max-width: 400px;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
-        }
-        .auth-card h2 { margin-bottom: 24px; text-align: center; font-weight: 600; }
-        .auth-card input {
-            width: 100%;
-            padding: 12px 16px;
-            margin-bottom: 12px;
-            background: var(--bg3);
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            color: var(--text);
-        }
-        .auth-toggle {
-            margin-top: 20px;
-            text-align: center;
-            font-size: 13px;
-            color: var(--teal);
-            cursor: pointer;
-            text-decoration: underline;
-        }
+        .auth-container { display: flex; align-items: center; justify-content: center; height: 100vh; background: var(--bg); z-index: 1000; position: relative; }
+        .auth-card { background: var(--bg2); padding: 32px; border-radius: 16px; border: 1px solid var(--border); width: 100%; max-width: 400px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); }
+        .auth-card h2 { margin-bottom: 24px; text-align: center; }
+        .auth-card input { width: 100%; padding: 12px; margin-bottom: 12px; background: var(--bg3); border: 1px solid var(--border); border-radius: 8px; color: var(--text); }
+        .auth-card button { width: 100%; padding: 12px; background: var(--teal); color: var(--bg); border: none; border-radius: 8px; font-weight: 600; cursor: pointer; }
+        .auth-toggle { margin-top: 20px; text-align: center; font-size: 13px; color: var(--teal); cursor: pointer; text-decoration: underline; }
 
         /* --- APP LAYOUT --- */
         .app { display: none; height: 100vh; overflow: hidden; }
-
-        .sidebar {
-            width: var(--sidebar-w);
-            background: var(--bg2);
-            border-right: 1px solid var(--border2);
-            display: flex;
-            flex-direction: column;
-            flex-shrink: 0;
-            overflow: hidden;
-        }
-        .sb-header { padding: 16px 16px 12px; border-bottom: 1px solid var(--border2); }
-        .sb-logo { font-family: var(--mono); font-size: 11px; color: var(--teal); letter-spacing: .12em; text-transform: uppercase; margin-bottom: 4px; }
-        .sb-title { font-size: 13px; font-weight: 600; color: var(--text); }
-        .sb-count { font-family: var(--mono); font-size: 11px; color: var(--text3); margin-top: 2px; }
+        .sidebar { width: var(--sidebar-w); background: var(--bg2); border-right: 1px solid var(--border2); display: flex; flex-direction: column; flex-shrink: 0; overflow: hidden; }
+        .sb-header { padding: 16px; border-bottom: 1px solid var(--border2); }
+        .sb-logo { font-family: var(--mono); font-size: 11px; color: var(--teal); letter-spacing: .12em; text-transform: uppercase; }
         .sb-scroll { flex: 1; overflow-y: auto; padding: 8px 0; }
-        .sb-scroll::-webkit-scrollbar { width: 4px; }
-        .sb-scroll::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
-        .sb-section-label { font-family: var(--mono); font-size: 10px; color: var(--text3); letter-spacing: .1em; text-transform: uppercase; padding: 10px 16px 4px; }
-        .sb-item { display: flex; align-items: center; justify-content: space-between; padding: 7px 16px; cursor: pointer; transition: background .15s; border-left: 2px solid transparent; gap: 8px; }
+        .sb-item { display: flex; justify-content: space-between; padding: 10px 16px; cursor: pointer; font-size: 13px; color: var(--text2); border-left: 2px solid transparent; }
         .sb-item:hover { background: var(--bg3); }
-        .sb-item.active { background: var(--teal-dim2); border-left-color: var(--teal); }
-        .sb-item-name { font-size: 12.5px; color: var(--text2); line-height: 1.3; flex: 1; min-width: 0; }
-        .sb-item.active .sb-item-name { color: var(--text); }
-        .sb-item-cnt { font-family: var(--mono); font-size: 11px; color: var(--text3); background: var(--bg3); padding: 1px 6px; border-radius: 3px; flex-shrink: 0; }
-        .sb-item.active .sb-item-cnt { color: var(--teal); background: var(--teal-dim); }
-        .sb-all { border-bottom: 1px solid var(--border2); margin-bottom: 4px; }
-        .sb-all .sb-item-name { font-weight: 600; color: var(--text); font-size: 13px; }
+        .sb-item.active { background: var(--teal-dim2); border-left-color: var(--teal); color: var(--text); }
 
-        .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
-        .topbar { height: var(--header-h); background: var(--bg2); border-bottom: 1px solid var(--border2); display: flex; align-items: center; padding: 0 20px; gap: 12px; flex-shrink: 0; }
-        .topbar-title { font-size: 13px; font-weight: 600; color: var(--text); flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .topbar-meta { font-family: var(--mono); font-size: 11px; color: var(--text3); white-space: nowrap; }
-        .btn-icon { background: none; border: 1px solid var(--border); color: var(--text2); padding: 5px 10px; border-radius: 6px; font-size: 12px; cursor: pointer; transition: all .15s; white-space: nowrap; font-family: var(--sans); display: flex; align-items: center; gap: 5px; }
+        .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+        .topbar { height: var(--header-h); background: var(--bg2); border-bottom: 1px solid var(--border2); display: flex; align-items: center; padding: 0 20px; gap: 10px; }
+        .topbar-title { font-size: 14px; font-weight: 600; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .btn-icon { background: none; border: 1px solid var(--border); color: var(--text2); padding: 6px 12px; border-radius: 6px; font-size: 12px; cursor: pointer; display: flex; align-items: center; gap: 5px; }
         .btn-icon:hover { border-color: var(--teal); color: var(--teal); }
-        .btn-icon.active { background: var(--teal-dim); border-color: var(--teal); color: var(--teal); }
 
-        .filters-bar { padding: 10px 20px; border-bottom: 1px solid var(--border2); display: flex; gap: 8px; align-items: center; flex-wrap: wrap; background: var(--bg); flex-shrink: 0; }
-        .filter-label { font-family: var(--mono); font-size: 10px; color: var(--text3); letter-spacing: .08em; text-transform: uppercase; }
-        .filter-btn { background: var(--bg2); border: 1px solid var(--border2); color: var(--text2); padding: 4px 10px; border-radius: 5px; font-size: 11.5px; cursor: pointer; transition: all .15s; font-family: var(--sans); }
-        .filter-btn:hover { border-color: var(--border); color: var(--text); }
-        .filter-btn.active { background: var(--teal-dim); border-color: var(--teal); color: var(--teal); }
-        .filter-sep { width: 1px; height: 18px; background: var(--border2); margin: 0 4px; }
-
-        .progress-strip { height: 3px; background: var(--bg3); flex-shrink: 0; position: relative; }
-        .progress-fill { height: 100%; background: var(--teal); transition: width .4s ease; border-radius: 0 2px 2px 0; }
-
-        .card-area { flex: 1; overflow-y: auto; padding: 28px 24px; display: flex; flex-direction: column; align-items: center; }
-        .card-area::-webkit-scrollbar { width: 5px; }
-        .card-area::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
-
-        .question-card { width: 100%; max-width: 720px; background: var(--bg2); border: 1px solid var(--border2); border-radius: 14px; overflow: hidden; animation: cardIn .2s ease; }
-        @keyframes cardIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
-
-        .card-header { padding: 14px 20px; border-bottom: 1px solid var(--border2); display: flex; align-items: center; gap: 10px; background: var(--bg3); }
-        .card-qnum { font-family: var(--mono); font-size: 12px; color: var(--teal); background: var(--teal-dim); padding: 2px 8px; border-radius: 4px; }
-        .card-source { font-family: var(--mono); font-size: 10.5px; color: var(--text3); background: var(--bg2); padding: 2px 7px; border-radius: 4px; border: 1px solid var(--border2); }
-        .card-lecture { font-size: 11.5px; color: var(--text3); margin-left: auto; text-align: right; max-width: 200px; line-height: 1.3; }
-        .card-stem { padding: 22px 22px 16px; font-size: 15.5px; font-weight: 500; color: var(--text); line-height: 1.65; direction: auto; }
-
-        .choices { padding: 0 22px 20px; display: flex; flex-direction: column; gap: 8px; }
-        .choice-btn { display: flex; align-items: flex-start; gap: 12px; padding: 12px 14px; background: var(--bg3); border: 1px solid var(--border2); border-radius: 8px; cursor: pointer; transition: all .15s; text-align: left; width: 100%; font-family: var(--sans); color: var(--text2); font-size: 14px; line-height: 1.5; }
-        .choice-btn:hover:not(.locked) { border-color: var(--border); color: var(--text); background: var(--bg2); }
+        .card-area { flex: 1; overflow-y: auto; padding: 30px 20px; display: flex; flex-direction: column; align-items: center; }
+        .question-card { width: 100%; max-width: 700px; background: var(--bg2); border: 1px solid var(--border2); border-radius: 12px; overflow: hidden; }
+        .card-header { padding: 12px 20px; background: var(--bg3); display: flex; justify-content: space-between; font-size: 12px; color: var(--text3); }
+        .card-stem { padding: 20px; font-size: 16px; font-weight: 500; line-height: 1.6; }
+        .choices { padding: 0 20px 20px; display: flex; flex-direction: column; gap: 10px; }
+        .choice-btn { display: flex; align-items: flex-start; gap: 12px; padding: 12px; background: var(--bg3); border: 1px solid var(--border2); border-radius: 8px; color: var(--text2); cursor: pointer; text-align: left; }
         .choice-btn.locked { cursor: default; }
-        .choice-letter { font-family: var(--mono); font-size: 12px; color: var(--text3); background: var(--bg2); border: 1px solid var(--border2); border-radius: 4px; padding: 1px 7px; flex-shrink: 0; margin-top: 1px; min-width: 28px; text-align: center; }
         .choice-btn.correct-answer { border-color: var(--green); background: var(--green-dim); color: var(--text); }
-        .choice-btn.correct-answer .choice-letter { background: var(--green); color: #0d1117; border-color: var(--green); font-weight: 600; }
-        .choice-btn.wrong-answer { border-color: var(--red); background: var(--red-dim); color: var(--text2); }
-        .choice-btn.wrong-answer .choice-letter { background: var(--red); color: #0d1117; border-color: var(--red); font-weight: 600; }
+        .choice-btn.wrong-answer { border-color: var(--red); background: var(--red-dim); color: var(--text); }
+        .choice-letter { font-family: var(--mono); background: var(--bg2); padding: 2px 8px; border-radius: 4px; font-size: 12px; }
 
-        .result-banner { margin: 0 22px 16px; padding: 10px 16px; border-radius: 8px; font-size: 13.5px; font-weight: 500; display: none; }
-        .result-banner.correct { background: var(--green-dim); color: var(--green); border: 1px solid rgba(74,222,128,.25); display: block; }
-        .result-banner.wrong { background: var(--red-dim); color: var(--red); border: 1px solid rgba(248,113,113,.25); display: block; }
+        .nav-footer { padding: 15px 20px; background: var(--bg2); border-top: 1px solid var(--border2); display: flex; align-items: center; gap: 15px; }
+        .nav-btn { background: var(--bg3); border: 1px solid var(--border2); color: var(--text); padding: 8px 16px; border-radius: 6px; cursor: pointer; }
+        .nav-btn:disabled { opacity: 0.3; cursor: default; }
 
-        .card-note-inline { margin: 0 22px 16px; padding: 10px 14px; background: var(--teal-dim2); border-left: 3px solid var(--teal); border-radius: 0 6px 6px 0; font-size: 12.5px; color: var(--text2); display: none; }
-        .card-note-inline.show { display: block; }
-
-        .nav-footer { flex-shrink: 0; padding: 12px 20px; background: var(--bg2); border-top: 1px solid var(--border2); display: flex; align-items: center; gap: 10px; }
-        .nav-btn { background: var(--bg3); border: 1px solid var(--border2); color: var(--text2); padding: 7px 18px; border-radius: 7px; font-size: 13px; cursor: pointer; transition: all .15s; font-family: var(--sans); }
-        .nav-btn:hover:not(:disabled) { border-color: var(--border); color: var(--text); }
-        .nav-btn:disabled { opacity: .3; cursor: default; }
-        .nav-counter { font-family: var(--mono); font-size: 12px; color: var(--text3); min-width: 70px; text-align: center; }
-        .nav-spacer { flex: 1; }
-        .nav-score { font-family: var(--mono); font-size: 12px; color: var(--text3); }
-        .score-correct { color: var(--green); }
-        .score-wrong { color: var(--red); }
-
-        /* Panels & Overlays */
-        .overlay { position: fixed; inset: 0; background: rgba(0,0,0,.7); backdrop-filter: blur(4px); z-index: 100; display: flex; align-items: center; justify-content: center; opacity: 0; pointer-events: none; transition: opacity .2s; }
-        .overlay.visible { opacity: 1; pointer-events: all; }
-        .panel { background: var(--bg2); border: 1px solid var(--border); border-radius: 16px; width: 90%; max-width: 680px; max-height: 85vh; display: flex; flex-direction: column; overflow: hidden; }
-        .panel-header { padding: 18px 22px; border-bottom: 1px solid var(--border2); display: flex; align-items: center; justify-content: space-between; }
-        .panel-close { background: none; border: none; color: var(--text3); font-size: 20px; cursor: pointer; padding: 0 4px; }
-        .panel-body { flex: 1; overflow-y: auto; padding: 16px 22px; }
-        .panel-footer { padding: 14px 22px; border-top: 1px solid var(--border2); display: flex; gap: 10px; justify-content: flex-end; }
-
-        .sync-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--text3); flex-shrink: 0; transition: background .3s; }
-        .sync-dot.synced { background: var(--green); }
-        .sync-dot.syncing { background: var(--yellow); animation: pulse 1s infinite; }
-        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
-
-        .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(10px); background: var(--bg3); border: 1px solid var(--border); color: var(--text); padding: 9px 18px; border-radius: 8px; font-size: 13px; opacity: 0; pointer-events: none; transition: all .25s; z-index: 200; }
-        .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+        .overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.8); display: none; align-items: center; justify-content: center; z-index: 2000; padding: 20px; }
+        .overlay.visible { display: flex; }
+        .panel { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; width: 100%; max-width: 600px; max-height: 80vh; display: flex; flex-direction: column; }
+        .panel-body { padding: 20px; overflow-y: auto; flex: 1; }
         
-        .hamburger { display: none; }
-        @media (max-width: 768px) {
-            .sidebar { position: fixed; left: -var(--sidebar-w); top: 0; height: 100%; z-index: 50; transform: translateX(-100%); transition: transform .25s ease; }
-            .sidebar.open { transform: translateX(0); }
-            .hamburger { display: flex; }
-        }
+        .wq-item { background: var(--bg3); padding: 12px; border-radius: 8px; margin-bottom: 10px; border-left: 4px solid var(--red); }
+        .wq-stem { font-size: 13px; margin-bottom: 5px; }
+        .wq-ans { font-size: 11px; color: var(--green); font-family: var(--mono); }
+
+        .sync-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--text3); }
+        .sync-dot.syncing { background: var(--yellow); }
+        .sync-dot.synced { background: var(--green); }
     </style>
 </head>
 <body>
 
     <div id="auth-screen" class="auth-container">
         <div class="auth-card" id="login-section">
-            <div class="sb-logo" style="text-align:center; margin-bottom:10px;">MU-MED 40</div>
-            <h2>Login</h2>
+            <h2>MU-MED 40 Login</h2>
             <form id="loginForm">
                 <input type="email" id="email" placeholder="Email" required>
                 <input type="password" id="password" placeholder="Password" required>
-                <button type="submit" class="btn-primary">Sign In</button>
+                <button type="submit">Sign In</button>
             </form>
-            <div class="auth-toggle" onclick="toggleAuth(true)">Don't have an account? Sign up</div>
+            <div class="auth-toggle" onclick="toggleAuth(true)">New here? Create account</div>
         </div>
-
         <div class="auth-card" id="signup-section" style="display:none;">
-            <div class="sb-logo" style="text-align:center; margin-bottom:10px;">MU-MED 40</div>
             <h2>Create Account</h2>
             <form id="signupForm">
                 <input type="email" id="signupEmail" placeholder="Email" required>
                 <input type="password" id="signupPassword" placeholder="Password" required>
-                <button type="submit" class="btn-primary">Register</button>
+                <button type="submit">Register</button>
             </form>
-            <div class="auth-toggle" onclick="toggleAuth(false)">Already have an account? Login</div>
+            <div class="auth-toggle" onclick="toggleAuth(false)">Have an account? Login</div>
         </div>
     </div>
 
     <div class="app" id="main-app">
-        <aside class="sidebar" id="sidebar">
-            <div class="sb-header">
-                <div class="sb-logo">MU-MED 40 · OBG</div>
-                <div class="sb-title">Question Bank</div>
-                <div class="sb-count" id="sb-total-count">0 MCQs · 0 Lectures</div>
-            </div>
-            <div class="sb-scroll">
-                <div class="sb-section-label">Lectures</div>
-                <ul id="sb-list" style="list-style:none"></ul>
-            </div>
+        <aside class="sidebar">
+            <div class="sb-header"><div class="sb-logo">Question Bank</div></div>
+            <div class="sb-scroll" id="sb-list"></div>
         </aside>
-
-        <div class="main">
+        <main class="main">
             <div class="topbar">
-                <button class="btn-icon hamburger" onclick="toggleSidebar()">☰</button>
                 <div class="topbar-title" id="deck-title">All Questions</div>
-                <div class="topbar-meta" id="deck-meta">—</div>
-                <button class="btn-icon" onclick="toggleShuffle(this)" id="btn-shuffle">⇌ Shuffle</button>
-                <button class="btn-icon" onclick="showWrongPanel()" id="btn-wrong">✗ Wrong</button>
+                <button class="btn-icon" onclick="showWrongPanel()">✗ Wrong</button>
                 <button class="btn-icon" onclick="showStats()">◎ Stats</button>
-                <button class="btn-icon" id="logoutBtn" style="color:var(--red); border-color:var(--red-dim)">Logout</button>
+                <button class="btn-icon" id="logoutBtn" style="color:var(--red)">Logout</button>
                 <div class="sync-dot" id="sync-dot"></div>
             </div>
-
-            <div class="filters-bar">
-                <span class="filter-label">Source:</span>
-                <button class="filter-btn active" data-src="" onclick="setSource(this,'')">All</button>
-                <button class="filter-btn" data-src="Old Formatives" onclick="setSource(this,'Old Formatives')">Old Form.</button>
-                <button class="filter-btn" data-src="New Formatives" onclick="setSource(this,'New Formatives')">New Form.</button>
-                <button class="filter-btn" data-src="Previous Exams" onclick="setSource(this,'Previous Exams')">Prev. Exam</button>
-                <div class="filter-sep"></div>
-                <span class="filter-label">Order:</span>
-                <button class="filter-btn active" data-order="random" onclick="setOrder(this,'random')">Random</button>
-                <button class="filter-btn" data-order="sequential" onclick="setOrder(this,'sequential')">Sequential</button>
-            </div>
-
-            <div class="progress-strip"><div class="progress-fill" id="prog-fill" style="width:0%"></div></div>
-
             <div class="card-area" id="card-area">
                 <div id="card-stage"></div>
             </div>
-
-            <div class="nav-footer">
-                <button class="nav-btn" id="btn-prev" onclick="prevCard()" disabled>← Prev</button>
-                <div class="nav-counter" id="nav-ctr">— / —</div>
-                <button class="nav-btn" id="btn-next" onclick="nextCard()" disabled>Next →</button>
-                <div class="nav-spacer"></div>
-                <div class="nav-score">
-                    <span class="score-correct" id="score-c">0</span> correct ·
-                    <span class="score-wrong" id="score-w">0</span> wrong
-                </div>
-            </div>
-        </div>
+            <footer class="nav-footer">
+                <button class="nav-btn" id="btn-prev" onclick="prevCard()">← Prev</button>
+                <div id="nav-ctr">0 / 0</div>
+                <button class="nav-btn" id="btn-next" onclick="nextCard()">Next →</button>
+                <div style="margin-left:auto">Correct: <span id="score-c" style="color:var(--green)">0</span></div>
+            </footer>
+        </main>
     </div>
 
     <div class="overlay" id="wrong-overlay">
         <div class="panel">
-            <div class="panel-header"><h2>Wrong Answers Review</h2><button class="panel-close" onclick="closeWrongPanel()">×</button></div>
-            <div id="wrong-panel-body" class="panel-body"></div>
-            <div class="panel-footer"><button class="btn-primary" id="practice-wrong-btn" onclick="practiceWrong()">Practice Wrong</button></div>
+            <div class="panel-body" id="wrong-panel-body"></div>
+            <div style="padding:15px; border-top:1px solid var(--border2); display:flex; gap:10px;">
+                <button class="nav-btn" onclick="closeWrongPanel()">Close</button>
+                <button class="nav-btn" style="background:var(--teal); color:black" onclick="practiceWrong()">Practice These</button>
+            </div>
         </div>
     </div>
 
     <div class="overlay" id="stats-overlay">
         <div class="panel">
-            <div class="panel-header"><h2>Statistics</h2><button class="panel-close" onclick="closeStats()">×</button></div>
-            <div id="stats-body" class="panel-body"></div>
-            <div class="panel-footer"><button class="btn-icon" style="color:var(--red)" onclick="clearProgress()">Reset</button></div>
+            <div class="panel-body" id="stats-body"></div>
+            <div style="padding:15px; border-top:1px solid var(--border2)">
+                <button class="nav-btn" onclick="closeStats()">Close</button>
+            </div>
         </div>
     </div>
-
-    <div class="toast" id="toast"></div>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-app.js";
@@ -313,43 +162,31 @@
         const auth = getAuth(app);
         const db = getFirestore(app);
 
-        // Auth Observer
         onAuthStateChanged(auth, async (user) => {
-            const authScreen = document.getElementById("auth-screen");
-            const mainApp = document.getElementById("main-app");
             if (user) {
-                authScreen.style.display = "none";
-                mainApp.style.display = "flex";
+                document.getElementById("auth-screen").style.display = "none";
+                document.getElementById("main-app").style.display = "flex";
                 await loadProgress();
             } else {
-                authScreen.style.display = "flex";
-                mainApp.style.display = "none";
+                document.getElementById("auth-screen").style.display = "flex";
+                document.getElementById("main-app").style.display = "none";
             }
         });
 
-        // Event Listeners
-        document.getElementById("loginForm").addEventListener("submit", e => {
+        document.getElementById("loginForm").onsubmit = (e) => {
             e.preventDefault();
-            signInWithEmailAndPassword(auth, document.getElementById("email").value, document.getElementById("password").value).catch(err => alert(err.message));
-        });
-
-        document.getElementById("signupForm").addEventListener("submit", e => {
-            e.preventDefault();
-            createUserWithEmailAndPassword(auth, document.getElementById("signupEmail").value, document.getElementById("signupPassword").value).catch(err => alert(err.message));
-        });
-
-        document.getElementById("logoutBtn").addEventListener("click", () => signOut(auth));
-
-        window.toggleAuth = (showSignup) => {
-            document.getElementById("login-section").style.display = showSignup ? "none" : "block";
-            document.getElementById("signup-section").style.display = showSignup ? "block" : "none";
+            signInWithEmailAndPassword(auth, document.getElementById("email").value, document.getElementById("password").value).catch(a => alert(a.message));
         };
 
-        // Firebase Sync Helpers
+        document.getElementById("signupForm").onsubmit = (e) => {
+            e.preventDefault();
+            createUserWithEmailAndPassword(auth, document.getElementById("signupEmail").value, document.getElementById("signupPassword").value).catch(a => alert(a.message));
+        };
+
+        document.getElementById("logoutBtn").onclick = () => signOut(auth);
+
         window._saveToFirebase = async (data) => {
-            if (auth.currentUser) {
-                await setDoc(doc(db, "users", auth.currentUser.uid), data, { merge: true });
-            }
+            if (auth.currentUser) await setDoc(doc(db, "users", auth.currentUser.uid), data, { merge: true });
         };
 
         window._loadFromFirebase = async () => {
@@ -357,127 +194,129 @@
                 const snap = await getDoc(doc(db, "users", auth.currentUser.uid));
                 return snap.exists() ? snap.data() : null;
             }
-            return null;
+        };
+
+        window.toggleAuth = (s) => {
+            document.getElementById("login-section").style.display = s ? "none" : "block";
+            document.getElementById("signup-section").style.display = s ? "block" : "none";
         };
     </script>
 
     <script src="questions_data.js"></script>
     <script>
-        let deck = [], idx = 0, shuffleMode = true, filterLecture = null, filterSource = '';
-        let mcqAnswers = {}, sessionCorrect = 0, sessionWrong = 0, syncTimeout = null;
+        let deck = [], idx = 0, mcqAnswers = {}, filterLec = null;
 
         function buildDeck() {
-            let cards = (typeof ALL_QUESTIONS !== 'undefined') ? ALL_QUESTIONS.slice() : [];
-            if (filterLecture) cards = cards.filter(c => c.lecture === filterLecture);
-            if (filterSource) cards = cards.filter(c => sourceGroup(c.source) === filterSource);
-            return shuffleMode ? shuffle(cards) : cards;
-        }
-
-        function shuffle(a) {
-            for (let i = a.length - 1; i > 0; i--) {
-                const j = Math.floor(Math.random() * (i + 1));
-                [a[i], a[j]] = [a[j], a[i]];
-            }
-            return a;
-        }
-
-        function sourceGroup(src) {
-            const s = String(src || '').toLowerCase();
-            if (s.includes('new formative')) return 'New Formatives';
-            if (s.includes('old formative')) return 'Old Formatives';
-            if (s.includes('previous') || s.includes('mu-med')) return 'Previous Exams';
-            return '';
+            let cards = (window.ALL_QUESTIONS || []).slice();
+            if (filterLec) cards = cards.filter(c => c.lecture === filterLec);
+            return cards;
         }
 
         function renderCard() {
             const stage = document.getElementById('card-stage');
-            if (!deck.length) {
-                stage.innerHTML = `<div class="empty-state"><h3>No questions</h3></div>`;
-                return;
-            }
+            if (!deck.length) { stage.innerHTML = "No questions found."; return; }
+            
             const c = deck[idx];
             const answered = mcqAnswers[c.id];
             const letters = ['A','B','C','D','E'];
 
             const choicesHTML = (c.choices || []).map((ch, i) => {
                 const l = letters[i];
-                let cls = 'choice-btn' + (answered ? ' locked' : '');
-                if (answered) {
-                    if (l === c.ans) cls += ' correct-answer';
-                    else if (l === answered) cls += ' wrong-answer';
-                }
-                return `<button class="${cls}" onclick="pick('${c.id}','${l}','${c.ans}')"><span class="choice-letter">${l}</span><span>${esc(ch)}</span></button>`;
+                let cls = "choice-btn" + (answered ? " locked" : "");
+                if (answered && l === c.ans) cls += " correct-answer";
+                if (answered && l === answered && l !== c.ans) cls += " wrong-answer";
+                return `<button class="${cls}" onclick="pick('${c.id}','${l}','${c.ans}')"><span class="choice-letter">${l}</span><span>${ch}</span></button>`;
             }).join('');
 
             stage.innerHTML = `
                 <div class="question-card">
-                    <div class="card-header"><span class="card-qnum">${c.num}</span><span class="card-lecture">${c.lecture}</span></div>
-                    <div class="card-stem">${esc(c.q)}</div>
+                    <div class="card-header"><span>${c.num}</span><span>${c.lecture}</span></div>
+                    <div class="card-stem">${c.q}</div>
                     <div class="choices">${choicesHTML}</div>
-                    ${answered ? `<div class="result-banner ${answered===c.ans?'correct':'wrong'}">${answered===c.ans?'✓ Correct':'✗ Correct: '+c.ans}</div>` : ''}
                 </div>`;
-            updateNav();
-        }
-
-        function pick(id, chosen, correct) {
-            if (mcqAnswers[id]) return;
-            mcqAnswers[id] = chosen;
-            if (chosen === correct) sessionCorrect++; else sessionWrong++;
-            renderCard(); updateScore(); scheduleSave();
-        }
-
-        function updateNav() {
-            document.getElementById('btn-prev').disabled = idx <= 0;
-            document.getElementById('btn-next').disabled = idx >= deck.length - 1;
+            
             document.getElementById('nav-ctr').textContent = `${idx + 1} / ${deck.length}`;
-            document.getElementById('prog-fill').style.width = (deck.length ? ((idx+1)/deck.length)*100 : 0) + '%';
+            document.getElementById('btn-prev').disabled = idx === 0;
+            document.getElementById('btn-next').disabled = idx === deck.length - 1;
+        }
+
+        function pick(id, l, ans) {
+            if (mcqAnswers[id]) return;
+            mcqAnswers[id] = l;
+            renderCard();
+            updateScore();
+            if (window._saveToFirebase) window._saveToFirebase({ mcqAnswers, idx });
         }
 
         function updateScore() {
-            document.getElementById('score-c').textContent = sessionCorrect;
-            document.getElementById('score-w').textContent = sessionWrong;
+            const correct = Object.keys(mcqAnswers).filter(id => {
+                const q = ALL_QUESTIONS.find(x => x.id === id);
+                return q && mcqAnswers[id] === q.ans;
+            }).length;
+            document.getElementById('score-c').textContent = correct;
         }
 
         function nextCard() { if (idx < deck.length - 1) { idx++; renderCard(); } }
         function prevCard() { if (idx > 0) { idx--; renderCard(); } }
 
-        async function scheduleSave() {
-            const dot = document.getElementById('sync-dot');
-            dot.className = 'sync-dot syncing';
-            clearTimeout(syncTimeout);
-            syncTimeout = setTimeout(async () => {
-                if (window._saveToFirebase) await window._saveToFirebase({ mcqAnswers, idx });
-                dot.className = 'sync-dot synced';
-            }, 1000);
+        // --- WRONG & STATS LOGIC ---
+        function showWrongPanel() {
+            const wrong = ALL_QUESTIONS.filter(q => mcqAnswers[q.id] && mcqAnswers[q.id] !== q.ans);
+            const body = document.getElementById('wrong-panel-body');
+            body.innerHTML = `<h3>Wrong Answers (${wrong.length})</h3>` + 
+                wrong.map(q => `<div class="wq-item"><div class="wq-stem">${q.q}</div><div class="wq-ans">Correct: ${q.ans}</div></div>`).join('');
+            document.getElementById('wrong-overlay').classList.add('visible');
         }
 
+        function practiceWrong() {
+            const wrong = ALL_QUESTIONS.filter(q => mcqAnswers[q.id] && mcqAnswers[q.id] !== q.ans);
+            if (wrong.length) {
+                deck = wrong; idx = 0; renderCard(); closeWrongPanel();
+                document.getElementById('deck-title').textContent = "Practicing Errors";
+            }
+        }
+
+        function showStats() {
+            const answered = Object.keys(mcqAnswers).length;
+            const correct = Object.keys(mcqAnswers).filter(id => {
+                const q = ALL_QUESTIONS.find(x => x.id === id);
+                return q && mcqAnswers[id] === q.ans;
+            }).length;
+            document.getElementById('stats-body').innerHTML = `
+                <h2>Statistics</h2>
+                <p>Total Answered: ${answered}</p>
+                <p>Accuracy: ${answered ? Math.round((correct/answered)*100) : 0}%</p>
+            `;
+            document.getElementById('stats-overlay').classList.add('visible');
+        }
+
+        // --- KEYBOARD SUPPORT ---
+        document.addEventListener('keydown', (e) => {
+            if (document.getElementById('main-app').style.display === "none") return;
+            if (e.key === "ArrowRight") nextCard();
+            if (e.key === "ArrowLeft") prevCard();
+            const keys = {'a':'A','b':'B','c':'C','d':'D','e':'E'};
+            if (keys[e.key.toLowerCase()] && deck[idx]) {
+                pick(deck[idx].id, keys[e.key.toLowerCase()], deck[idx].ans);
+            }
+        });
+
         async function loadProgress() {
-            const data = window._loadFromFirebase ? await window._loadFromFirebase() : null;
+            const data = await window._loadFromFirebase();
             if (data) { mcqAnswers = data.mcqAnswers || {}; idx = data.idx || 0; }
-            if (typeof ALL_QUESTIONS !== 'undefined') {
-                document.getElementById('sb-total-count').textContent = `${ALL_QUESTIONS.length} MCQs`;
-                buildSidebar();
+            if (window.ALL_QUESTIONS) {
+                const lecs = [...new Set(ALL_QUESTIONS.map(q => q.lecture))].sort();
+                document.getElementById('sb-list').innerHTML = `<div class="sb-item active" onclick="setLec(null)">All Lectures</div>` + 
+                    lecs.map(l => `<div class="sb-item" onclick="setLec('${l}')">${l}</div>`).join('');
             }
             deck = buildDeck();
             renderCard();
+            updateScore();
         }
 
-        function buildSidebar() {
-            const list = document.getElementById('sb-list');
-            const lecs = [...new Set(ALL_QUESTIONS.map(q => q.lecture))].sort();
-            list.innerHTML = `<li class="sb-item sb-all ${!filterLecture?'active':''}" onclick="filterLec(null)">All Lectures</li>` + 
-                lecs.map(l => `<li class="sb-item ${filterLecture===l?'active':''}" onclick="filterLec('${l}')">${l}</li>`).join('');
-        }
-
-        function filterLec(l) { filterLecture = l; buildSidebar(); deck = buildDeck(); idx = 0; renderCard(); }
-        function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;'); }
-        function toggleSidebar() { document.getElementById('sidebar').classList.toggle('open'); }
-        
-        // Modal Handlers
-        function showStats() { document.getElementById('stats-overlay').classList.add('visible'); }
-        function closeStats() { document.getElementById('stats-overlay').classList.remove('visible'); }
-        function showWrongPanel() { document.getElementById('wrong-overlay').classList.add('visible'); }
+        function setLec(l) { filterLec = l; deck = buildDeck(); idx = 0; renderCard(); }
         function closeWrongPanel() { document.getElementById('wrong-overlay').classList.remove('visible'); }
+        function closeStats() { document.getElementById('stats-overlay').classList.remove('visible'); }
     </script>
 </body>
 </html>
