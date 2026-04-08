@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>OBG Question Bank — MU-MED 40</title>
 
 <script>
@@ -11,13 +11,11 @@
       <div style="background:#f87171; color:#0d1117; padding:30px; margin:20px; border-radius:12px; font-family:sans-serif;">
         <h2 style="margin-top:0">System Crash Detected</h2>
         <p><strong>Error:</strong> ${message}</p>
-        <p><strong>Location:</strong> Line ${lineno}</p>
-        <p>This usually happens if your saved progress got corrupted or questions_data.js has a syntax error.</p>
         <button onclick="localStorage.clear(); location.reload();" style="background:#0d1117; color:#f87171; border:none; padding:12px 20px; font-weight:bold; border-radius:6px; cursor:pointer; margin-top:10px;">
           Hard Reset App Data
         </button>
       </div>`;
-    return true; // Stops normal execution
+    return true; 
   };
 </script>
 
@@ -51,7 +49,12 @@ html, body {
 .auth-container { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; background: var(--bg); padding: 20px; z-index: 1000; position: relative; }
 .auth-card { background: var(--bg2); padding: 32px; border-radius: 16px; border: 1px solid var(--border); width: 100%; max-width: 400px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); }
 .auth-card h2 { margin-bottom: 24px; text-align: center; font-weight: 600; font-size: 20px; }
-.auth-card input { width: 100%; padding: 12px 16px; margin-bottom: 12px; background: var(--bg3); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-family: var(--sans); }
+.auth-card input { 
+  width: 100%; padding: 12px 16px; margin-bottom: 12px; 
+  background: var(--bg3); border: 1px solid var(--border); 
+  border-radius: 8px; color: var(--text); font-family: var(--sans);
+  font-size: 16px; /* CRITICAL: Prevents iOS auto-zoom on mobile */
+}
 .btn-primary { background: var(--teal); color: #0d1117; border: none; padding: 10px 20px; border-radius: 7px; font-size: 14px; font-weight: 600; cursor: pointer; font-family: var(--sans); transition: opacity .15s; width: 100%; }
 .btn-primary:hover { opacity: .85; }
 .auth-toggle { margin-top: 20px; text-align: center; font-size: 13px; color: var(--teal); cursor: pointer; }
@@ -91,10 +94,10 @@ html, body {
 /* ── FILTERS BAR ─────────────────────────────── */
 .filters-bar { padding: 10px 20px; border-bottom: 1px solid var(--border2); display: flex; gap: 8px; align-items: center; flex-wrap: wrap; background: var(--bg); flex-shrink: 0; }
 .filter-label { font-family: var(--mono); font-size: 10px; color: var(--text3); letter-spacing: .08em; text-transform: uppercase; }
-.filter-btn { background: var(--bg2); border: 1px solid var(--border2); color: var(--text2); padding: 4px 10px; border-radius: 5px; font-size: 11.5px; cursor: pointer; transition: all .15s; font-family: var(--sans); }
+.filter-btn { background: var(--bg2); border: 1px solid var(--border2); color: var(--text2); padding: 4px 10px; border-radius: 5px; font-size: 11.5px; cursor: pointer; transition: all .15s; font-family: var(--sans); white-space: nowrap; }
 .filter-btn:hover { border-color: var(--border); color: var(--text); }
 .filter-btn.active { background: var(--teal-dim); border-color: var(--teal); color: var(--teal); }
-.filter-sep { width: 1px; height: 18px; background: var(--border2); margin: 0 4px; }
+.filter-sep { width: 1px; height: 18px; background: var(--border2); margin: 0 4px; flex-shrink: 0; }
 
 /* ── PROGRESS BAR ─────────────────────────────── */
 .progress-strip { height: 3px; background: var(--bg3); flex-shrink: 0; position: relative; }
@@ -138,16 +141,16 @@ html, body {
 .nav-btn:disabled { opacity: .3; cursor: default; }
 .nav-counter { font-family: var(--mono); font-size: 12px; color: var(--text3); min-width: 70px; text-align: center; }
 .nav-spacer { flex: 1; }
-.nav-score { font-family: var(--mono); font-size: 12px; color: var(--text3); }
+.nav-score { font-family: var(--mono); font-size: 12px; color: var(--text3); white-space: nowrap; }
 .score-correct { color: var(--green); }
 .score-wrong { color: var(--red); }
 
 /* ── OVERLAYS & PANELS ─────────────────────────────── */
 .empty-state { text-align: center; padding: 60px 20px; color: var(--text3); }
 .empty-state h3 { font-size: 18px; color: var(--text2); margin-bottom: 8px; }
-.overlay { position: fixed; inset: 0; background: rgba(0,0,0,.7); backdrop-filter: blur(4px); z-index: 100; display: flex; align-items: center; justify-content: center; opacity: 0; pointer-events: none; transition: opacity .2s; }
+.overlay { position: fixed; inset: 0; background: rgba(0,0,0,.8); backdrop-filter: blur(4px); z-index: 100; display: flex; align-items: center; justify-content: center; opacity: 0; pointer-events: none; transition: opacity .2s; }
 .overlay.visible { opacity: 1; pointer-events: all; }
-.panel { background: var(--bg2); border: 1px solid var(--border); border-radius: 16px; width: 90%; max-width: 680px; max-height: 85vh; display: flex; flex-direction: column; overflow: hidden; }
+.panel { background: var(--bg2); border: 1px solid var(--border); border-radius: 16px; width: 95%; max-width: 680px; max-height: 85vh; display: flex; flex-direction: column; overflow: hidden; }
 .panel-header { padding: 18px 22px; border-bottom: 1px solid var(--border2); display: flex; align-items: center; justify-content: space-between; }
 .panel-header h2 { font-size: 16px; font-weight: 600; }
 .panel-close { background: none; border: none; color: var(--text3); font-size: 20px; cursor: pointer; transition: color .15s; }
@@ -170,7 +173,7 @@ html, body {
 /* Wrong question list */
 .wq-item { background: var(--bg3); border: 1px solid var(--border2); border-radius: 8px; padding: 12px 14px; margin-bottom: 8px; cursor: pointer; transition: border-color .15s; }
 .wq-item:hover { border-color: var(--teal); }
-.wq-meta { display: flex; gap: 8px; align-items: center; margin-bottom: 5px; }
+.wq-meta { display: flex; gap: 8px; align-items: center; margin-bottom: 5px; flex-wrap: wrap;}
 .wq-num { font-family: var(--mono); font-size: 11px; color: var(--teal); }
 .wq-lec { font-size: 11px; color: var(--text3); }
 .wq-stem { font-size: 13px; color: var(--text); margin-bottom: 8px; line-height: 1.4; }
@@ -199,12 +202,40 @@ html, body {
 
 .hamburger { display: none; }
 .sidebar-backdrop { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.6); z-index: 49; }
+
+/* ── CRITICAL MOBILE FIXES ─────────────────────────────── */
 @media (max-width: 768px) {
+  /* Sidebar handling */
   .sidebar { position: fixed; left: -var(--sidebar-w); top: 0; height: 100%; z-index: 50; transform: translateX(-100%); transition: transform .25s ease; }
   .sidebar.open { transform: translateX(0); }
   .sidebar-backdrop.open { display: block; }
   .hamburger { display: flex; }
-  .card-area { padding: 16px 14px; }
+
+  /* Make topbar horizontally scrollable so buttons don't get squished */
+  .topbar { overflow-x: auto; padding: 0 12px; }
+  .topbar::-webkit-scrollbar { display: none; }
+  .topbar-meta { display: none; } /* Hide extra text to save space */
+  
+  /* Make filters row swipeable horizontally */
+  .filters-bar { overflow-x: auto; flex-wrap: nowrap; padding: 10px 12px; -webkit-overflow-scrolling: touch; }
+  .filters-bar::-webkit-scrollbar { display: none; }
+
+  /* Adjust Cards for small screens */
+  .card-area { padding: 16px 12px; }
+  .card-header { flex-wrap: wrap; padding: 12px; gap: 6px; }
+  .card-lecture { margin-left: 0; text-align: left; width: 100%; margin-top: 4px; font-size: 11px; }
+  .card-stem { padding: 16px 16px 12px; font-size: 14.5px; }
+  .choices { padding: 0 16px 16px; }
+  .choice-btn { font-size: 13px; padding: 10px 12px; gap: 10px; }
+
+  /* Stack Nav footer cleanly */
+  .nav-footer { flex-wrap: wrap; justify-content: center; padding: 12px; }
+  .nav-spacer { display: none; }
+  .nav-score { width: 100%; text-align: center; margin-top: 6px; }
+  
+  /* Modal adjustments */
+  .stats-grid { grid-template-columns: 1fr 1fr; }
+  .stat-box.total { grid-column: span 2; }
   .lec-bar-name { width: 120px; }
 }
 </style>
@@ -298,7 +329,7 @@ html, body {
       <div class="panel-body" id="wrong-panel-body"></div>
       <div class="panel-footer">
         <button class="btn-icon" onclick="closeWrongPanel()">Close</button>
-        <button class="btn-primary" id="practice-wrong-btn" onclick="practiceWrong()">Practice Wrong</button>
+        <button class="btn-primary" id="practice-wrong-btn" onclick="practiceWrong()" style="width:auto;">Practice Wrong</button>
       </div>
     </div>
   </div>
@@ -309,7 +340,7 @@ html, body {
       <div class="panel-body" id="stats-body"></div>
       <div class="panel-footer">
         <button class="btn-icon" style="color:var(--red);border-color:var(--red)" onclick="clearProgress()">Reset Progress</button>
-        <button class="btn-primary" onclick="closeStats()">Close</button>
+        <button class="btn-primary" onclick="closeStats()" style="width:auto;">Close</button>
       </div>
     </div>
   </div>
@@ -326,7 +357,6 @@ html, body {
 
     window.initAppAfterLogin = async function() {
       try {
-        // Safe binding of question data
         safeAllQuestions = typeof ALL_QUESTIONS !== 'undefined' ? ALL_QUESTIONS : [];
         if (safeAllQuestions.length > 0) {
             document.getElementById('sb-total-count').textContent = `${safeAllQuestions.length} MCQs`;
@@ -335,30 +365,21 @@ html, body {
         }
 
         let data = null;
+        if (window._loadFromFirebase) data = await window._loadFromFirebase();
         
-        // 1. Try Firebase Load First
-        if (window._loadFromFirebase) {
-            data = await window._loadFromFirebase();
-        }
-        
-        // 2. Fallback to Local Storage if Firebase is empty/fails
         if (!data) {
             const raw = localStorage.getItem(LS_KEY);
             if (raw) data = JSON.parse(raw);
         }
         
-        // 3. Apply Data State Safely
         if (data) {
             mcqAnswers = data.mcqAnswers || {};
             filterLecture = data.filterLecture || null;
             filterSource = data.filterSource || '';
             shuffleMode = data.shuffleMode !== undefined ? data.shuffleMode : true;
-            
-            // Critical Fix: Force parsing idx as an integer to prevent array out-of-bounds crashes
             idx = parseInt(data.idx, 10);
             if (isNaN(idx)) idx = 0;
             
-            // Sync UI Toggle Buttons
             document.querySelectorAll('[data-src]').forEach(b => b.classList.toggle('active', b.dataset.src === filterSource));
             document.querySelectorAll('[data-order]').forEach(b => b.classList.toggle('active', b.dataset.order === (shuffleMode ? 'random' : 'sequential')));
             const shuffleBtn = document.getElementById('btn-shuffle');
@@ -366,21 +387,14 @@ html, body {
             shuffleBtn.textContent = shuffleMode ? '⇌ Shuffle ON' : '⇌ Shuffle OFF';
         }
 
-        // Initialize Render
         buildSidebar();
         deck = buildDeck();
-        
-        // Final Bounds Check for index
-        if (deck.length === 0) {
-            idx = 0;
-        } else {
-            idx = Math.min(idx, Math.max(0, deck.length - 1));
-        }
+        if (deck.length === 0) idx = 0;
+        else idx = Math.min(idx, Math.max(0, deck.length - 1));
         
         updateTitle(); updateMeta(); renderCard(); updateNav(); recalculateSessionScore();
         
       } catch (error) {
-         // Throwing it ensures the Global Error Catcher catches it
          throw new Error("Failed during initAppAfterLogin: " + error.message);
       }
     };
@@ -439,7 +453,7 @@ html, body {
     function renderCard() {
         const stage = document.getElementById('card-stage');
         if (!deck.length) {
-            stage.innerHTML = `<div class="empty-state"><h3>No questions found</h3><p>Change your filters or select a different lecture.</p><button class="btn-primary" onclick="clearFilters()">Clear Filters</button></div>`;
+            stage.innerHTML = `<div class="empty-state"><h3>No questions found</h3><p>Change your filters or select a different lecture.</p><button class="btn-primary" onclick="clearFilters()" style="width:auto; margin-top:10px;">Clear Filters</button></div>`;
             document.getElementById('prog-fill').style.width = '0%';
             return;
         }
@@ -593,28 +607,16 @@ html, body {
         clearTimeout(syncTimeout);
         syncTimeout = setTimeout(async () => {
             const dataToSave = { mcqAnswers, filterLecture, filterSource, shuffleMode, idx };
-            
-            // 1. Dual-Save: Save Locally first (instant fallback)
             try { localStorage.setItem(LS_KEY, JSON.stringify(dataToSave)); } catch(e) {}
-            
-            // 2. Sync to Firebase
             if (window._saveToFirebase) {
                 const fbSuccess = await window._saveToFirebase(dataToSave);
-                if (!fbSuccess) {
-                    setSyncDot('error'); 
-                    return; 
-                }
+                if (!fbSuccess) { setSyncDot('error'); return; }
             }
-            setSyncDot('synced'); 
-            setTimeout(() => { if(document.getElementById('sync-dot').className.includes('synced')) setSyncDot(''); }, 3000);
+            setSyncDot('synced'); setTimeout(() => { if(document.getElementById('sync-dot').className.includes('synced')) setSyncDot(''); }, 3000);
         }, 1000);
     }
     
-    function setSyncDot(s) { 
-        document.getElementById('sync-dot').className = 'sync-dot ' + s; 
-        if(s === 'error') document.getElementById('sync-dot').title = "Cloud Save Blocked (Saved Locally)";
-    }
-    
+    function setSyncDot(s) { document.getElementById('sync-dot').className = 'sync-dot ' + s; if(s === 'error') document.getElementById('sync-dot').title = "Cloud Save Blocked (Saved Locally)"; }
     function toast(msg) { const e = document.getElementById('toast'); e.textContent = msg; e.classList.add('show'); setTimeout(() => e.classList.remove('show'), 2500); }
     function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
@@ -656,7 +658,6 @@ html, body {
     const auth = getAuth(app);
     const db = getFirestore(app);
 
-    // Share DB functions globally for UI Script
     window._saveToFirebase = async (data) => {
         if (auth.currentUser) {
             try {
