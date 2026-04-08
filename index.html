@@ -109,7 +109,13 @@ html, body {
 .card-header { padding: 14px 20px; border-bottom: 1px solid var(--border2); display: flex; align-items: center; gap: 10px; background: var(--bg3); }
 .card-qnum { font-family: var(--mono); font-size: 12px; color: var(--teal); background: var(--teal-dim); padding: 2px 8px; border-radius: 4px; }
 .card-source { font-family: var(--mono); font-size: 10.5px; color: var(--text3); background: var(--bg2); padding: 2px 7px; border-radius: 4px; border: 1px solid var(--border2); }
-.card-lecture { font-size: 11.5px; color: var(--text3); margin-left: auto; text-align: right; max-width: 200px; line-height: 1.3; }
+.card-lecture { font-size: 11.5px; color: var(--text3); flex: 1; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* Per-Question Note Editor */
+.note-editor { padding: 0 20px 16px; display: none; }
+.note-editor textarea { width: 100%; padding: 12px; background: var(--bg3); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-family: var(--sans); font-size: 13.5px; resize: vertical; min-height: 80px; }
+.note-editor textarea:focus { border-color: var(--teal); outline: none; }
+
 .card-stem { padding: 22px 22px 16px; font-size: 15.5px; font-weight: 500; color: var(--text); line-height: 1.65; direction: auto; }
 
 .choices { padding: 0 22px 20px; display: flex; flex-direction: column; gap: 8px; }
@@ -152,10 +158,6 @@ html, body {
 .panel-body::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
 .panel-footer { padding: 14px 22px; border-top: 1px solid var(--border2); display: flex; gap: 10px; justify-content: flex-end; }
 
-/* Notebook specific styles */
-#study-notes { width: 100%; height: 140px; background: var(--bg3); border: 1px solid var(--border2); border-radius: 8px; color: var(--text); padding: 12px; font-family: var(--sans); font-size: 14px; resize: vertical; margin-bottom: 10px; line-height: 1.5; }
-#study-notes:focus { border-color: var(--teal); outline: none; }
-
 /* Stats grid */
 .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 20px; }
 .stat-box { background: var(--bg3); border: 1px solid var(--border2); border-radius: 8px; padding: 12px; text-align: center; }
@@ -164,10 +166,10 @@ html, body {
 .stat-box.correct .val { color: var(--green); }
 .stat-box.wrong .val { color: var(--red); }
 .stat-box.total .val { color: var(--teal); }
-.section-title { font-size: 12px; font-weight: 600; color: var(--text3); letter-spacing: .08em; text-transform: uppercase; font-family: var(--mono); margin: 15px 0 10px; }
+.section-title { font-size: 12px; font-weight: 600; color: var(--text3); letter-spacing: .08em; text-transform: uppercase; font-family: var(--mono); margin: 15px 0 10px; border-bottom: 1px solid var(--border2); padding-bottom: 5px;}
 
-/* Wrong question list */
-.wq-item { background: var(--bg3); border: 1px solid var(--border2); border-radius: 8px; padding: 12px 14px; margin-bottom: 8px; cursor: pointer; transition: border-color .15s; }
+/* Question List Items (For Notebook/Wrong Bank) */
+.wq-item { background: var(--bg3); border: 1px solid var(--border2); border-radius: 8px; padding: 12px 14px; margin-bottom: 12px; cursor: pointer; transition: border-color .15s; }
 .wq-item:hover { border-color: var(--teal); }
 .wq-meta { display: flex; gap: 8px; align-items: center; margin-bottom: 5px; flex-wrap: wrap;}
 .wq-num { font-family: var(--mono); font-size: 11px; color: var(--teal); }
@@ -177,6 +179,7 @@ html, body {
 .wq-your { font-size: 12px; color: var(--red); background: var(--red-dim); padding: 2px 8px; border-radius: 4px; }
 .wq-correct { font-size: 12px; color: var(--green); background: var(--green-dim); padding: 2px 8px; border-radius: 4px; }
 .wq-empty { text-align: center; padding: 30px; color: var(--text3); font-size: 13px; background: var(--bg3); border-radius: 8px; border: 1px dashed var(--border2); }
+.wq-note-preview { margin-top: 8px; padding: 8px 12px; background: var(--bg2); border-left: 3px solid var(--yellow); font-size: 12.5px; color: var(--text2); border-radius: 0 4px 4px 0; font-family: var(--sans); white-space: pre-wrap;}
 
 /* Per-lecture breakdown */
 .lec-bar-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
@@ -218,7 +221,7 @@ html, body {
 
   .card-area { padding: 16px 12px; }
   .card-header { flex-wrap: wrap; padding: 12px; gap: 6px; }
-  .card-lecture { margin-left: 0; text-align: left; width: 100%; margin-top: 4px; font-size: 11px; }
+  .card-lecture { margin-left: 0; text-align: left; width: 100%; font-size: 11px; }
   .card-stem { padding: 16px 16px 12px; font-size: 14.5px; }
   .choices { padding: 0 16px 16px; }
   .choice-btn { font-size: 13px; padding: 10px 12px; gap: 10px; }
@@ -278,10 +281,8 @@ html, body {
         <button class="btn-icon hamburger" onclick="toggleSidebar()">☰</button>
         <div class="topbar-title" id="deck-title">All Questions</div>
         <div class="topbar-meta" id="deck-meta">—</div>
-        <button class="btn-icon shuffle-on" onclick="toggleShuffle(this)" id="btn-shuffle" title="Shuffle">⇌ Shuffle ON</button>
-        
+        <button class="btn-icon shuffle-on" onclick="toggleShuffle(this)" id="btn-shuffle" title="Shuffle">⇌ Shuffle</button>
         <button class="btn-icon" onclick="showNotebookPanel()" id="btn-notebook" title="Notes & Wrong Answers">📓 Notebook</button>
-        
         <button class="btn-icon" onclick="showStats()" title="Statistics">◎ Stats</button>
         <button class="btn-icon" id="logoutBtn" style="color:var(--red); border-color:var(--red-dim)">Logout</button>
         <div class="sync-dot" id="sync-dot" title="Sync status"></div>
@@ -320,17 +321,17 @@ html, body {
 
   <div class="overlay" id="notebook-overlay">
     <div class="panel">
-      <div class="panel-header"><h2>Study Notebook & Errors</h2><button class="panel-close" onclick="closeNotebookPanel()">×</button></div>
+      <div class="panel-header"><h2>📓 Study Notebook</h2><button class="panel-close" onclick="closeNotebookPanel()">×</button></div>
       <div class="panel-body">
-          <div class="section-title" style="margin-top:0;">My Study Notes</div>
-          <textarea id="study-notes" placeholder="Type your personal notes, mnemonics, or summaries here... Everything auto-saves."></textarea>
+          <div class="section-title" style="margin-top:0;" id="notes-list-title">My Saved Notes (0)</div>
+          <div id="notes-list-container" style="margin-bottom: 24px;"></div>
           
-          <div class="section-title" id="wrong-bank-title">Saved Wrong Questions (0)</div>
+          <div class="section-title" id="wrong-bank-title">Permanent Wrong Bank (0)</div>
           <div id="wrong-bank-list"></div>
       </div>
       <div class="panel-footer">
         <button class="btn-icon" onclick="closeNotebookPanel()">Close</button>
-        <button class="btn-primary" id="practice-wrong-btn" onclick="practiceWrong()" style="width:auto;">Practice Wrong Bank</button>
+        <button class="btn-primary" id="practice-wrong-btn" onclick="practiceWrong()" style="width:auto;">Practice Wrong</button>
       </div>
     </div>
   </div>
@@ -351,21 +352,19 @@ html, body {
   <script src="questions_data.js"></script>
 
   <script>
-    const LS_KEY = 'obg_progress_v6';
+    const LS_KEY = 'obg_progress_v7';
     let deck = [], idx = 0, shuffleMode = true, filterLecture = null, filterSource = '';
     let mcqAnswers = {}, sessionCorrect = 0, sessionWrong = 0, syncTimeout = null;
     let safeAllQuestions = [];
     
     let wrongBank = []; 
-    let globalNotes = ""; // State for personal notes
+    let questionNotes = {}; // Stores notes by card ID
 
     window.initAppAfterLogin = async function() {
       try {
         safeAllQuestions = typeof ALL_QUESTIONS !== 'undefined' ? ALL_QUESTIONS : [];
         if (safeAllQuestions.length > 0) {
             document.getElementById('sb-total-count').textContent = `${safeAllQuestions.length} MCQs`;
-        } else {
-            console.warn("ALL_QUESTIONS array is empty or not found.");
         }
 
         let data = null;
@@ -379,7 +378,7 @@ html, body {
         if (data) {
             mcqAnswers = data.mcqAnswers || {};
             wrongBank = data.wrongBank || []; 
-            globalNotes = data.globalNotes || ""; // Load notes
+            questionNotes = data.questionNotes || {}; // Load per-question notes
             filterLecture = data.filterLecture || null;
             filterSource = data.filterSource || '';
             shuffleMode = data.shuffleMode !== undefined ? data.shuffleMode : true;
@@ -392,9 +391,6 @@ html, body {
             shuffleBtn.classList.toggle('shuffle-on', shuffleMode);
             shuffleBtn.textContent = shuffleMode ? '⇌ Shuffle ON' : '⇌ Shuffle OFF';
         }
-        
-        // Fill the textarea with saved notes
-        document.getElementById('study-notes').value = globalNotes;
 
         buildSidebar();
         deck = buildDeck();
@@ -407,12 +403,6 @@ html, body {
          throw new Error("Failed during initAppAfterLogin: " + error.message);
       }
     };
-    
-    // Auto-save notes as user types
-    document.getElementById('study-notes').addEventListener('input', (e) => {
-        globalNotes = e.target.value;
-        scheduleSave();
-    });
 
     function recalculateSessionScore() {
         sessionCorrect = 0; sessionWrong = 0;
@@ -475,6 +465,8 @@ html, body {
 
         const c = deck[idx];
         const answered = mcqAnswers[c.id];
+        const savedNote = questionNotes[c.id] || ''; // Load note for this specific question
+        const noteClass = savedNote ? 'active' : '';
         const letters = ['A','B','C','D','E','F'];
 
         const choicesHTML = (c.choices || []).map((ch, i) => {
@@ -495,7 +487,15 @@ html, body {
 
         stage.innerHTML = `
             <div class="question-card">
-                <div class="card-header"><span class="card-qnum">${esc(c.num)}</span><span class="card-source">${sourceLabel(c.source)}</span><span class="card-lecture">${esc(c.lecture)}</span></div>
+                <div class="card-header">
+                    <span class="card-qnum">${esc(c.num)}</span>
+                    <span class="card-source">${sourceLabel(c.source)}</span>
+                    <span class="card-lecture">${esc(c.lecture)}</span>
+                    <button class="btn-icon ${noteClass}" onclick="toggleNoteEditor()" style="margin-left:auto; padding:3px 8px;" title="Take notes on this question">📝</button>
+                </div>
+                <div class="note-editor" id="note-editor" style="display: ${savedNote ? 'block' : 'none'}">
+                    <textarea placeholder="Write a note, mnemonic, or explanation for this specific question... (Auto-saves)" oninput="saveQuestionNote('${c.id}', this.value)">${esc(savedNote)}</textarea>
+                </div>
                 <div class="card-stem">${esc(c.q)}</div>
                 <div class="choices">${choicesHTML}</div>
                 ${resultHTML}
@@ -503,10 +503,29 @@ html, body {
         
         document.getElementById('prog-fill').style.width = Math.round(((idx + 1) / deck.length) * 100) + '%';
     }
+    
+    // --- NEW: Per Question Note Logic ---
+    window.toggleNoteEditor = function() {
+        const el = document.getElementById('note-editor');
+        if (el.style.display === 'none' || el.style.display === '') {
+            el.style.display = 'block';
+            el.querySelector('textarea').focus();
+        } else {
+            el.style.display = 'none';
+        }
+    };
+
+    window.saveQuestionNote = function(id, val) {
+        if (val.trim() === '') {
+            delete questionNotes[id];
+        } else {
+            questionNotes[id] = val;
+        }
+        scheduleSave();
+    };
 
     window.pickAnswer = function(cardId, chosen, correct) {
         if (mcqAnswers[cardId]) return;
-        
         mcqAnswers[cardId] = chosen;
         
         if (chosen === correct) {
@@ -532,8 +551,9 @@ html, body {
     function updateScore() {
         document.getElementById('score-c').textContent = sessionCorrect;
         document.getElementById('score-w').textContent = sessionWrong;
-        // Notebook badge shows wrongBank count
-        document.getElementById('btn-notebook').textContent = `📓 Notebook${wrongBank.length ? ' ('+wrongBank.length+')' : ''}`;
+        // Notebook badge shows total items (wrong + notes) to encourage review
+        const totalItems = wrongBank.length + Object.keys(questionNotes).length;
+        document.getElementById('btn-notebook').textContent = `📓 Notebook${totalItems ? ' ('+totalItems+')' : ''}`;
     }
 
     function updateTitle() { document.getElementById('deck-title').textContent = (filterLecture || 'All Questions') + (filterSource ? ' · ' + filterSource : ''); }
@@ -563,27 +583,55 @@ html, body {
     window.toggleSidebar = function() { document.getElementById('sidebar').classList.toggle('open'); document.getElementById('sidebar-backdrop').classList.toggle('open'); };
     window.closeSidebar = function() { document.getElementById('sidebar').classList.remove('open'); document.getElementById('sidebar-backdrop').classList.remove('open'); };
 
-    // --- NEW NOTEBOOK OVERLAY LOGIC ---
+    // --- NOTEBOOK HUB (Notes + Wrong Bank) ---
     window.showNotebookPanel = function() {
+        // 1. Build Notes List
+        const notedIds = Object.keys(questionNotes);
+        const notesContainer = document.getElementById('notes-list-container');
+        document.getElementById('notes-list-title').textContent = `My Saved Notes (${notedIds.length})`;
+        
+        if (notedIds.length === 0) {
+            notesContainer.innerHTML = `<div class="wq-empty">No notes yet. Click the 📝 icon on any question to add a note.</div>`;
+        } else {
+            let notesHtml = ``;
+            notedIds.forEach(id => {
+                const q = safeAllQuestions.find(x => x.id === id);
+                if (q) {
+                    notesHtml += `<div class="wq-item" onclick="goToCard('${id}')">
+                        <div class="wq-meta"><span class="wq-num">${esc(q.num)}</span><span class="wq-lec">${esc(q.lecture)}</span></div>
+                        <div class="wq-stem">${esc(q.q.substring(0,80))}...</div>
+                        <div class="wq-note-preview">📝 ${esc(questionNotes[id])}</div>
+                    </div>`;
+                }
+            });
+            notesContainer.innerHTML = notesHtml;
+        }
+
+        // 2. Build Wrong Bank List
         const wrongCards = safeAllQuestions.filter(c => wrongBank.includes(c.id));
-        const listContainer = document.getElementById('wrong-bank-list');
-        const titleContainer = document.getElementById('wrong-bank-title');
+        const wbContainer = document.getElementById('wrong-bank-list');
+        document.getElementById('wrong-bank-title').textContent = `Permanent Wrong Bank (${wrongCards.length})`;
         
         if (!wrongCards.length) {
-            listContainer.innerHTML = `<div class="wq-empty">🎉 Your Wrong Answer Bank is empty! Keep going!</div>`;
+            wbContainer.innerHTML = `<div class="wq-empty">🎉 Bank is empty! Keep going!</div>`;
             document.getElementById('practice-wrong-btn').style.display = 'none';
-            titleContainer.textContent = `Saved Wrong Questions (0)`;
         } else {
             document.getElementById('practice-wrong-btn').style.display = 'block';
             document.getElementById('practice-wrong-btn').textContent = `Practice ${wrongCards.length} Wrong`;
-            titleContainer.textContent = `Saved Wrong Questions (${wrongCards.length})`;
-            
-            let html = ``;
+            let wbHtml = ``;
             wrongCards.forEach(c => {
                 const correct = c.choices[(c.ans || 'A').charCodeAt(0) - 65] || c.ans;
-                html += `<div class="wq-item" onclick="goToCard('${c.id}')"><div class="wq-meta"><span class="wq-num">${esc(c.num)}</span><span class="wq-lec">${esc(c.lecture)}</span></div><div class="wq-stem">${esc(c.q.substring(0,100))}...</div><div class="wq-answers"><span class="wq-correct">✓ ${c.ans}) ${esc(correct.substring(0,40))}</span></div></div>`;
+                // If this wrong question ALSO has a note, show it here too!
+                const notePreview = questionNotes[c.id] ? `<div class="wq-note-preview">📝 ${esc(questionNotes[c.id])}</div>` : '';
+                
+                wbHtml += `<div class="wq-item" onclick="goToCard('${c.id}')">
+                    <div class="wq-meta"><span class="wq-num">${esc(c.num)}</span><span class="wq-lec">${esc(c.lecture)}</span></div>
+                    <div class="wq-stem">${esc(c.q.substring(0,80))}...</div>
+                    <div class="wq-answers"><span class="wq-correct">✓ ${c.ans}) ${esc(correct.substring(0,40))}</span></div>
+                    ${notePreview}
+                </div>`;
             });
-            listContainer.innerHTML = html;
+            wbContainer.innerHTML = wbHtml;
         }
         document.getElementById('notebook-overlay').classList.add('visible');
     };
@@ -610,7 +658,7 @@ html, body {
     };
 
     window.showStats = function() {
-        const allAns = Object.keys(mcqAnswers).length, correct = safeAllQuestions.filter(c => mcqAnswers[c.id] === c.ans).length, wrong = allAns - correct;
+        const allAns = Object.keys(mcqAnswers).length, correct = safeAllQuestions.filter(c => mcqAnswers[c.id] === c.ans).length;
         const lectures = [...new Set(safeAllQuestions.map(c => c.lecture))].sort();
         let html = `<div class="stats-grid"><div class="stat-box total"><div class="val">${allAns}</div><div class="lbl">Answered</div></div><div class="stat-box correct"><div class="val">${correct}</div><div class="lbl">Correct</div></div><div class="stat-box wrong"><div class="val">${wrongBank.length}</div><div class="lbl">In Wrong Bank</div></div></div><div class="section-title">By Lecture</div>`;
         lectures.forEach(lec => {
@@ -625,19 +673,19 @@ html, body {
     window.closeStats = function() { document.getElementById('stats-overlay').classList.remove('visible'); };
 
     window.clearProgress = function() {
-        if (!confirm('Reset all saved progress? This clears answers, notes, AND your Wrong Bank.')) return;
-        mcqAnswers = {}; wrongBank = []; globalNotes = "";
-        document.getElementById('study-notes').value = "";
+        if (!confirm('Reset all saved progress? This clears answers, NOTES, and your Wrong Bank.')) return;
+        mcqAnswers = {}; wrongBank = []; questionNotes = {};
         recalculateSessionScore(); closeStats(); loadDeck(); toast('Progress reset');
         try { localStorage.removeItem(LS_KEY); } catch(e){}
-        if (window._saveToFirebase) window._saveToFirebase({ mcqAnswers: {}, wrongBank: [], globalNotes: "", cleared: true });
+        if (window._saveToFirebase) window._saveToFirebase({ mcqAnswers: {}, wrongBank: [], questionNotes: {}, cleared: true });
     };
 
     function scheduleSave() {
         setSyncDot('syncing');
         clearTimeout(syncTimeout);
         syncTimeout = setTimeout(async () => {
-            const dataToSave = { mcqAnswers, wrongBank, globalNotes, filterLecture, filterSource, shuffleMode, idx };
+            // Save the new questionNotes object!
+            const dataToSave = { mcqAnswers, wrongBank, questionNotes, filterLecture, filterSource, shuffleMode, idx };
             try { localStorage.setItem(LS_KEY, JSON.stringify(dataToSave)); } catch(e) {}
             if (window._saveToFirebase) {
                 const fbSuccess = await window._saveToFirebase(dataToSave);
