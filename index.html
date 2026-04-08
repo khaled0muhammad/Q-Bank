@@ -9,50 +9,84 @@
 
 <!-- Firebase -->
 <script type="module">
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-  import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+  import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut } 
+    from "https://www.gstatic.com/firebasejs/12.11.0/firebase-auth.js";
+  import { getFirestore, doc, setDoc, getDoc } 
+    from "https://www.gstatic.com/firebasejs/12.11.0/firebase-firestore.js";
+  import { initializeApp } 
+    from "https://www.gstatic.com/firebasejs/12.11.0/firebase-app.js";
 
-  // ── PASTE YOUR FIREBASE CONFIG HERE ──────────────────────────────────────
   const firebaseConfig = {
-    apiKey: "YOUR_API_KEY",
-    authDomain: "YOUR_PROJECT.firebaseapp.com",
-    projectId: "YOUR_PROJECT_ID",
-    storageBucket: "YOUR_PROJECT.appspot.com",
-    messagingSenderId: "YOUR_SENDER_ID",
-    appId: "YOUR_APP_ID"
+    apiKey: "AIzaSyBjN5mvWufrfGMW8eDZKAwrVa2dAIt0Yu0",
+    authDomain: "obg-e5d67.firebaseapp.com",
+    projectId: "obg-e5d67",
+    storageBucket: "obg-e5d67.firebasestorage.app",
+    messagingSenderId: "575965796689",
+    appId: "1:575965796689:web:2d2aea412a04672c275b70",
+    measurementId: "G-1GG7FJCBJ2"
   };
-  // ─────────────────────────────────────────────────────────────────────────
 
-  let db = null;
-  let userId = null;
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const db = getFirestore(app);
 
-  try {
-    const app = initializeApp(firebaseConfig);
-    db = getFirestore(app);
-    userId = localStorage.getItem('obg_uid') || ('u_' + Math.random().toString(36).slice(2));
-    localStorage.setItem('obg_uid', userId);
-    console.log('Firebase ready, user:', userId);
-    window._firebaseReady = true;
-  } catch(e) {
-    console.warn('Firebase init failed, using localStorage only:', e.message);
-    window._firebaseReady = false;
+  // Sign Up
+  document.getElementById("signupForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const email = document.getElementById("signupEmail").value;
+    const password = document.getElementById("signupPassword").value;
+    try {
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      alert("Signed up: " + userCredential.user.email);
+    } catch (error) {
+      alert(error.message);
+    }
+  });
+
+  // Sign In
+  document.getElementById("loginForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const email = document.getElementById("email").value;
+    const password = document.getElementById("password").value;
+    try {
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      alert("Signed in: " + userCredential.user.email);
+    } catch (error) {
+      alert(error.message);
+    }
+  });
+
+  // Log Out
+  document.getElementById("logoutBtn").addEventListener("click", async () => {
+    await signOut(auth);
+    alert("Logged out");
+  });
+
+  // Save Progress Example
+  async function saveProgress(score) {
+    const user = auth.currentUser;
+    if (user) {
+      await setDoc(doc(db, "progress", user.uid), { score: score });
+      alert("Progress saved!");
+    }
   }
 
-  window._saveToFirebase = async function(data) {
-    if (!db || !userId) return;
-    try {
-      await setDoc(doc(db, 'progress', userId), { ...data, ts: Date.now() });
-    } catch(e) { console.warn('Firebase save failed:', e.message); }
-  };
-
-  window._loadFromFirebase = async function() {
-    if (!db || !userId) return null;
-    try {
-      const snap = await getDoc(doc(db, 'progress', userId));
-      return snap.exists() ? snap.data() : null;
-    } catch(e) { console.warn('Firebase load failed:', e.message); return null; }
-  };
+  // Load Progress Example
+  async function loadProgress() {
+    const user = auth.currentUser;
+    if (user) {
+      const docSnap = await getDoc(doc(db, "progress", user.uid));
+      if (docSnap.exists()) {
+        alert("Progress: " + JSON.stringify(docSnap.data()));
+      } else {
+        alert("No progress found");
+      }
+    }
+  }
 </script>
+
+
+
 
 <style>
 :root {
@@ -711,6 +745,22 @@ html, body {
 </style>
 </head>
 <body>
+
+<h2>Login</h2>
+  <form id="loginForm">
+    <input type="email" id="email" placeholder="Email" required>
+    <input type="password" id="password" placeholder="Password" required>
+    <button type="submit">Sign In</button>
+  </form>
+
+  <h2>Sign Up</h2>
+  <form id="signupForm">
+    <input type="email" id="signupEmail" placeholder="Email" required>
+    <input type="password" id="signupPassword" placeholder="Password" required>
+    <button type="submit">Sign Up</button>
+  </form>
+
+  <button id="logoutBtn">Log Out</button>
 
 <div class="app">
 
