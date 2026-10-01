@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>OBG Question Bank — MU-MED 40</title>
+<title>Pediatrics Question Bank — MU-MED 40</title>
 
 <script>
   window.onerror = function(message, source, lineno, colno, error) {
@@ -289,7 +289,7 @@ html, body {
   <div class="app" id="main-app">
     <aside class="sidebar" id="sidebar">
       <div class="sb-header">
-        <div class="sb-logo">MU-MED 40 · OBG</div>
+        <div class="sb-logo">MU-MED 40 · Pediatrics</div>
         <div class="sb-title">Question Bank</div>
         <div class="sb-count" id="sb-total-count">Loading...</div>
       </div>
@@ -315,9 +315,8 @@ html, body {
       <div class="filters-bar">
         <span class="filter-label">Source:</span>
         <button class="filter-btn active" data-src="" onclick="setSource(this,'')">All</button>
-        <button class="filter-btn" data-src="Old Formatives" onclick="setSource(this,'Old Formatives')">Old Form.</button>
-        <button class="filter-btn" data-src="New Formatives" onclick="setSource(this,'New Formatives')">New Form.</button>
-        <button class="filter-btn" data-src="Previous Exams" onclick="setSource(this,'Previous Exams')">Prev. Exam</button>
+        <button class="filter-btn" data-src="Lecture" onclick="setSource(this,'Lecture')">Lecture</button>
+        <button class="filter-btn" data-src="Exam Model" onclick="setSource(this,'Exam Model')">Exam Model</button>
         <div class="filter-sep"></div>
         <span class="filter-label">Order:</span>
         <button class="filter-btn active" data-order="random" onclick="setOrder(this,'random')">Random</button>
@@ -375,7 +374,7 @@ html, body {
   <script src="questions_data.js"></script>
 
   <script>
-    const LS_KEY = 'obg_progress_v8'; 
+    const LS_KEY = 'peds_progress_v1'; 
     let deck = [], idx = 0, shuffleMode = true, filterLecture = null, filterSource = '';
     let mcqAnswers = {}, sessionCorrect = 0, sessionWrong = 0, syncTimeout = null;
     let safeAllQuestions = [];
@@ -399,11 +398,15 @@ html, body {
         }
         
         if (data) {
-            mcqAnswers = data.mcqAnswers || {};
-            wrongBank = data.wrongBank || []; 
-            questionNotes = data.questionNotes || {};
-            filterLecture = data.filterLecture || null;
-            filterSource = data.filterSource || '';
+            // Keep only progress that belongs to the current question bank (ignores ids/filters from the previous bank)
+            const validIds = new Set(safeAllQuestions.map(q => q.id));
+            const validLectures = new Set(safeAllQuestions.map(q => q.lecture));
+            const keepValid = obj => Object.fromEntries(Object.entries(obj || {}).filter(([id]) => validIds.has(id)));
+            mcqAnswers = keepValid(data.mcqAnswers);
+            wrongBank = (data.wrongBank || []).filter(id => validIds.has(id));
+            questionNotes = keepValid(data.questionNotes);
+            filterLecture = validLectures.has(data.filterLecture) ? data.filterLecture : null;
+            filterSource = ['Lecture', 'Exam Model'].includes(data.filterSource) ? data.filterSource : '';
             shuffleMode = data.shuffleMode !== undefined ? data.shuffleMode : true;
             idx = parseInt(data.idx, 10);
             if (isNaN(idx)) idx = 0;
@@ -437,20 +440,13 @@ html, body {
     }
 
     function sourceGroup(src) {
-        const s = String(src || '').toLowerCase();
-        if (s.includes('new formative')) return 'New Formatives';
-        if (s.includes('old formative')) return 'Old Formatives';
-        if (s.includes('previous') || s.includes('mu-med')) return 'Previous Exams';
-        return '';
+        return (src === 'Lecture' || src === 'Exam Model') ? src : '';
     }
 
     function sourceLabel(src) {
-        const s = String(src || '').toLowerCase();
-        if (s.includes('new formative')) return 'New Form.';
-        if (s.includes('old formative')) return 'Old Form.';
-        if (s.includes('previous') || s.includes('mu-med')) return 'Prev. Exam';
-        if (s.includes('lecture')) return 'Lecture Q';
-        return src ? src.split('/')[0].trim().substring(0, 20) : '—';
+        if (src === 'Exam Model') return 'Exam Model';
+        if (src === 'Lecture') return 'Lecture Q';
+        return '—';
     }
 
     function buildDeck() {
