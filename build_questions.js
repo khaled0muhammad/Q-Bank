@@ -1,7 +1,18 @@
 // build_questions.js
 // Must load AFTER questions_data.js and AFTER topics_data_extra_2.js.
+// Builds the flat ALL_QUESTIONS array that index.html reads.
+//
+// Existing topic ids (growth_development, anemia, etc.) are unchanged,
+// so Firebase progress is preserved.
 
-const EXAM_MODEL_REFS = new Set([ /* ... same set ... */ ]);
+const EXAM_MODEL_REFS = new Set([
+  "malnutrition-mcq-exam.pdf", "diarrhea_vomiting_exam.pdf", "anemia_midterm_exam.pdf",
+  "hemolytic-anemia-pediatrics-exam.pdf", "hemorrhagic_disorders_midterm_exam.pdf",
+  "platelet-disorders-midterm-exam.pdf", "oncology-midterm-exam.pdf",
+  "GIT_Bleeding_Midterm_Exam.pdf", "rickets.pdf", "constipation_midterm_exam.pdf",
+  "growth_and_development_midterm_exam.pdf", "Infant_feeding.pdf"
+]);
+
 function isExamModelRef(ref) {
   return EXAM_MODEL_REFS.has(ref) || /exam|midterm/i.test(String(ref || ""));
 }
