@@ -313,15 +313,27 @@ html, body {
       </div>
 
       <div class="filters-bar">
-        <span class="filter-label">Source:</span>
-        <button class="filter-btn active" data-src="" onclick="setSource(this,'')">All</button>
-        <button class="filter-btn" data-src="Lecture" onclick="setSource(this,'Lecture')">Lecture</button>
-        <button class="filter-btn" data-src="Exam Model" onclick="setSource(this,'Exam Model')">Exam Model</button>
-        <div class="filter-sep"></div>
-        <span class="filter-label">Order:</span>
-        <button class="filter-btn active" data-order="random" onclick="setOrder(this,'random')">Random</button>
-        <button class="filter-btn" data-order="sequential" onclick="setOrder(this,'sequential')">Sequential</button>
-      </div>
+  <span class="filter-label">Source:</span>
+  <button class="filter-btn active" data-src="" onclick="setSource(this,'')">All</button>
+  <button class="filter-btn" data-src="Lecture" onclick="setSource(this,'Lecture')">Lecture</button>
+  <button class="filter-btn" data-src="Exam Model" onclick="setSource(this,'Exam Model')">Exam Model</button>
+  <button class="filter-btn" data-src="MID Growth" onclick="setSource(this,'MID Growth')">MID Growth</button>
+  <button class="filter-btn" data-src="MID PEM" onclick="setSource(this,'MID PEM')">MID PEM</button>
+  <button class="filter-btn" data-src="MID Rickets" onclick="setSource(this,'MID Rickets')">MID Rickets</button>
+  <button class="filter-btn" data-src="MID Breastfeeding" onclick="setSource(this,'MID Breastfeeding')">MID Breast</button>
+  <button class="filter-btn" data-src="MID Constipation & GIT" onclick="setSource(this,'MID Constipation & GIT')">MID Constip</button>
+  <button class="filter-btn" data-src="MID Diarrhea & Vomiting" onclick="setSource(this,'MID Diarrhea & Vomiting')">MID Diarr</button>
+  <button class="filter-btn" data-src="MID Anemia" onclick="setSource(this,'MID Anemia')">MID Anemia</button>
+  <button class="filter-btn" data-src="MID Hemolytic" onclick="setSource(this,'MID Hemolytic')">MID Hemoly</button>
+  <button class="filter-btn" data-src="MID Coagulation" onclick="setSource(this,'MID Coagulation')">MID Coag</button>
+  <button class="filter-btn" data-src="MID Platelet" onclick="setSource(this,'MID Platelet')">MID Plate</button>
+  <button class="filter-btn" data-src="MID Oncology" onclick="setSource(this,'MID Oncology')">MID Onco</button>
+  <button class="filter-btn" data-src="MID Asthma" onclick="setSource(this,'MID Asthma')">MID Asthma</button>
+  <div class="filter-sep"></div>
+  <span class="filter-label">Order:</span>
+  <button class="filter-btn active" data-order="random" onclick="setOrder(this,'random')">Random</button>
+  <button class="filter-btn" data-order="sequential" onclick="setOrder(this,'sequential')">Sequential</button>
+</div>
 
       <div class="progress-strip"><div class="progress-fill" id="prog-fill" style="width:0%"></div></div>
 
@@ -372,6 +384,8 @@ html, body {
   <div class="toast" id="toast"></div>
 
   <script src="questions_data.js"></script>
+<script src="topics_data_extra_2.js"></script>
+<script src="build_questions.js"></script>
 
   <script>
     const LS_KEY = 'peds_progress_v1'; 
@@ -382,6 +396,14 @@ html, body {
     let wrongBank = []; 
     let questionNotes = {};
 
+function isValidSource(s) {
+    if (!s) return false;
+    if (s === 'Lecture' || s === 'Exam Model') return true;
+    if (s === 'GIT shehab') return true;
+    if (typeof s === 'string' && s.startsWith('MID ')) return true;
+    return false;
+}
+    
     window.initAppAfterLogin = async function() {
       try {
         safeAllQuestions = typeof ALL_QUESTIONS !== 'undefined' ? ALL_QUESTIONS : [];
@@ -406,8 +428,7 @@ html, body {
             wrongBank = (data.wrongBank || []).filter(id => validIds.has(id));
             questionNotes = keepValid(data.questionNotes);
             filterLecture = validLectures.has(data.filterLecture) ? data.filterLecture : null;
-            filterSource = ['Lecture', 'Exam Model'].includes(data.filterSource) ? data.filterSource : '';
-            shuffleMode = data.shuffleMode !== undefined ? data.shuffleMode : true;
+filterSource = isValidSource(data.filterSource) ? data.filterSource : '';            shuffleMode = data.shuffleMode !== undefined ? data.shuffleMode : true;
             idx = parseInt(data.idx, 10);
             if (isNaN(idx)) idx = 0;
             
@@ -440,14 +461,18 @@ html, body {
     }
 
     function sourceGroup(src) {
-        return (src === 'Lecture' || src === 'Exam Model') ? src : '';
-    }
-
+    if (src === 'Lecture' || src === 'Exam Model') return src;
+    if (src === 'GIT shehab') return 'GIT shehab';
+    if (typeof src === 'string' && src.startsWith('MID ')) return src;
+    return '';
+}
     function sourceLabel(src) {
-        if (src === 'Exam Model') return 'Exam Model';
-        if (src === 'Lecture') return 'Lecture Q';
-        return '—';
-    }
+    if (src === 'Exam Model') return 'Exam Model';
+    if (src === 'Lecture') return 'Lecture Q';
+    if (src === 'GIT shehab') return 'GIT shehab';
+    if (typeof src === 'string' && src.startsWith('MID ')) return src.replace(/^MID\s+/, '');
+    return '—';
+}
 
     function buildDeck() {
         let cards = safeAllQuestions.slice();
