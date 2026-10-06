@@ -874,7 +874,13 @@ html, body {
     // The bundled questions_data.js is the baseline. Anything the admin adds/edits/hides is stored in Firestore
     // and downloaded incrementally (only changes newer than the last sync), then cached on the device.
     const QCACHE_KEY = 'peds_qdelta_v1';
-    const LECT = (typeof LECTURES !== 'undefined') ? LECTURES : [];
+    const BASE_LECTURES = (typeof LECTURES !== 'undefined') ? LECTURES : [];
+    const LECT = [];                 // live lecture list: bundled baseline + lectures added/renamed/removed in the Admin panel
+    let lecMap = new Map();
+    function rebuildLectures() {
+        LECT.length = 0;
+        [...lecMap.values()].sort((a, b) => a.order - b.order || a.title.localeCompare(b.title)).forEach(l => LECT.push(l));
+    }
     const SEED = (typeof SEED_MS !== 'undefined') ? SEED_MS : 0;
     let bankMap = new Map();
     let allQuestionsFull = [];      // every question, including hidden ones
@@ -894,8 +900,10 @@ html, body {
             reason: q.reason || '', ref: q.ref || '', diff: q.diff || '', hidden: !!q.hidden, order: q.order };
     }
     function rebuildBank() {
-        const lecPos = id => { const i = LECT.findIndex(l => l.id === id); return i < 0 ? 999 : i; };
-        allQuestionsFull = [...bankMap.values()].sort((a, b) => lecPos(a.lectureId) - lecPos(b.lectureId) || a.order - b.order);
+        const lecPos = id => LECT.findIndex(l => l.id === id);
+        allQuestionsFull = [...bankMap.values()].filter(q => lectureById(q.lectureId))
+            .map(q => { q.lecture = lectureById(q.lectureId).title; return q; })
+            .sort((a, b) => lecPos(a.lectureId) - lecPos(b.lectureId) || a.order - b.order);
         const counter = {};
         allQuestionsFull.forEach(q => {
             if (q.hidden) { q.num = '—'; return; }
@@ -906,19 +914,26 @@ html, body {
     }
     async function loadQuestionBank() {
         bankMap = new Map((typeof ALL_QUESTIONS !== 'undefined' ? ALL_QUESTIONS : []).map(q => [q.id, { ...q }]));
-        let cache = { lastSync: SEED, items: {} };
+        lecMap = new Map(BASE_LECTURES.map(l => [l.id, { id: l.id, title: l.title, order: l.order }]));
+        let cache = { lastSync: SEED, items: {}, lecSync: SEED, lecs: {} };
         try {
             const raw = JSON.parse(localStorage.getItem(QCACHE_KEY) || 'null');
-            if (raw && raw.items && raw.lastSync >= SEED) cache = raw;
+            if (raw && raw.items && raw.lastSync >= SEED) cache = { lastSync: raw.lastSync, items: raw.items, lecSync: raw.lecSync >= SEED ? raw.lecSync : SEED, lecs: raw.lecs || {} };
         } catch (e) {}
         if (window._fb) {
             try {
                 const fresh = await window._fb.fetchQuestionsSince(cache.lastSync);
                 fresh.forEach(x => { cache.items[x.id] = x; if (x.updatedMs > cache.lastSync) cache.lastSync = x.updatedMs; });
-                try { localStorage.setItem(QCACHE_KEY, JSON.stringify(cache)); } catch (e) {}
             } catch (e) { console.warn('Question updates unavailable, using bundled/cached questions:', e.message); }
+            try {
+                const freshL = await window._fb.fetchLecturesSince(cache.lecSync);
+                freshL.forEach(x => { cache.lecs[x.id] = x; if (x.updatedMs > cache.lecSync) cache.lecSync = x.updatedMs; });
+            } catch (e) { console.warn('Lecture updates unavailable, using bundled/cached lectures:', e.message); }
+            try { localStorage.setItem(QCACHE_KEY, JSON.stringify(cache)); } catch (e) {}
         }
-        Object.values(cache.items).forEach(x => bankMap.set(x.id, docToQuestion(x)));
+        Object.values(cache.lecs).forEach(x => { if (x.deleted) lecMap.delete(x.id); else lecMap.set(x.id, { id: x.id, title: x.title || 'Untitled', order: Number(x.order) || 0 }); });
+        rebuildLectures();
+        Object.values(cache.items).forEach(x => { if (x.deleted) bankMap.delete(x.id); else bankMap.set(x.id, docToQuestion(x)); });
         rebuildBank();
     }
     function refreshAfterBankChange() {
@@ -952,10 +967,10 @@ html, body {
     window.admTab = function(t) { adm.tab = t; adm.editing = null; adm.sumEditing = null; renderAdmin(); };
 
     function renderAdmin() {
-        const tabs = [['questions', 'Questions'], ['import', 'Bulk import'], ['summaries', 'Summaries']];
+        const tabs = [['questions', 'Questions'], ['lectures', 'Lectures'], ['import', 'Bulk import'], ['summaries', 'Summaries']];
         byId('admin-body').innerHTML =
             `<div class="adm-tabs">${tabs.map(([k, l]) => `<button class="adm-tab ${adm.tab === k ? 'active' : ''}" onclick="admTab('${k}')">${l}</button>`).join('')}</div><div id="adm-content"></div>`;
-        if (adm.tab === 'questions') admQuestions(); else if (adm.tab === 'import') admImport(); else admSummaries();
+        if (adm.tab === 'questions') admQuestions(); else if (adm.tab === 'lectures') admLectures(); else if (adm.tab === 'import') admImport(); else admSummaries();
     }
     function adminErrorText(e) {
         if (e && (e.code === 'permission-denied' || /permission/i.test(e.message || ''))) return 'Permission denied: this account is not set up as an admin in Firebase (see the setup steps), or the security rules are not published yet.';
@@ -997,6 +1012,7 @@ html, body {
                 <div class="adm-row-actions">
                     <button class="btn-icon" onclick="admEdit('${q.id}')">Edit</button>
                     <button class="btn-icon" onclick="admToggleHide('${q.id}')">${q.hidden ? 'Unhide' : 'Hide'}</button>
+                    <button class="btn-icon" style="color:var(--red)" onclick="admDelete('${q.id}')">Delete</button>
                 </div>
             </div>`).join('') || '<div class="wq-empty">No questions match.</div>');
     }
@@ -1032,7 +1048,7 @@ html, body {
             </div>
             <label class="adm-check"><input type="checkbox" id="f-hidden" ${d.hidden ? 'checked' : ''}> Hide from students</label>
             <div id="adm-err" class="adm-err"></div>
-            <div class="adm-toolbar" style="margin-top:14px"><button class="btn-primary" id="f-save" style="width:auto" onclick="admSaveQuestion()">Save</button><button class="btn-icon" onclick="admCancelEdit()">Cancel</button></div>`;
+            <div class="adm-toolbar" style="margin-top:14px"><button class="btn-primary" id="f-save" style="width:auto" onclick="admSaveQuestion()">Save</button><button class="btn-icon" onclick="admCancelEdit()">Cancel</button>${q ? `<button class="btn-icon" style="color:var(--red);margin-left:auto" onclick="admDelete('${q.id}')">Delete question</button>` : ''}</div>`;
     }
     window.admSaveQuestion = async function() {
         const err = m => { byId('adm-err').textContent = m; };
@@ -1057,6 +1073,53 @@ html, body {
         adm.lastSource = source; upsertLocal(id, doc);
         toast(existing ? 'Question updated' : 'Question added');
         adm.editing = null; refreshAfterBankChange(); renderAdmin();
+    };
+
+    // ---- Deleting (permanent for everyone; students' old answers to deleted questions are simply ignored) ----
+    // A deleted question/lecture is saved as a small "tombstone" so devices that already cached it learn it is gone.
+    const tombstoneQ = q => ({ deleted: true, lectureId: q.lectureId, order: q.order, source: '', q: '', choices: [], ans: '', reason: '', ref: '', diff: '', hidden: true });
+    window.admDelete = async function(id) {
+        const q = bankMap.get(id); if (!q) return;
+        if (!confirm('Delete this question permanently?\n\n' + q.q.slice(0, 140) + '\n\nIt disappears for every student and cannot be undone. (To keep it but stop showing it, use Hide instead.)')) return;
+        try { await cloudSaveQuestion(id, tombstoneQ(q)); } catch (e) { toast(adminErrorText(e)); return; }
+        bankMap.delete(id); adm.editing = null; rebuildBank(); refreshAfterBankChange(); renderAdmin(); toast('Question deleted');
+    };
+
+    // ---- Lectures tab ----
+    function admLectures() {
+        const total = {}, hid = {};
+        bankMap.forEach(q => { total[q.lectureId] = (total[q.lectureId] || 0) + 1; if (q.hidden) hid[q.lectureId] = (hid[q.lectureId] || 0) + 1; });
+        byId('adm-content').innerHTML = `
+            <div class="adm-toolbar"><input id="lec-new" class="adm-in adm-grow" placeholder="New lecture title" onkeydown="if (event.key === 'Enter') admLecAdd()"><button class="btn-primary" style="width:auto" onclick="admLecAdd()">+ Add lecture</button></div>
+            <div class="adm-count">${LECT.length} lecture${LECT.length === 1 ? '' : 's'} · a new lecture appears for students once it has a visible question</div>
+            ${LECT.map(l => `<div class="adm-row"><div class="adm-row-main"><div class="wq-stem">${esc(l.title)}</div>
+                <div class="wq-meta"><span class="wq-lec">${total[l.id] || 0} question${(total[l.id] || 0) === 1 ? '' : 's'}${hid[l.id] ? ` · ${hid[l.id]} hidden` : ''}</span></div></div>
+                <div class="adm-row-actions"><button class="btn-icon" onclick="admLecRename('${l.id}')">Rename</button><button class="btn-icon" style="color:var(--red)" onclick="admLecDelete('${l.id}')">Delete</button></div></div>`).join('') || '<div class="wq-empty">No lectures yet. Add the first one above.</div>'}`;
+    }
+    window.admLecAdd = async function() {
+        const title = byId('lec-new').value.trim();
+        if (!title) return toast('Enter a lecture title');
+        if (LECT.some(l => l.title.toLowerCase() === title.toLowerCase())) return toast('A lecture with that title already exists');
+        const id = (title.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 28) || 'lecture') + '_' + Math.random().toString(36).slice(2, 6);
+        const order = LECT.reduce((m, l) => Math.max(m, l.order), 0) + 1;
+        try { await window._fb.saveLecture(id, { title, order, deleted: false }); } catch (e) { toast(adminErrorText(e)); return; }
+        lecMap.set(id, { id, title, order }); rebuildLectures(); renderAdmin(); toast('Lecture added');
+    };
+    window.admLecRename = async function(id) {
+        const l = lectureById(id); if (!l) return;
+        const t = (prompt('Lecture title:', l.title) || '').trim(); if (!t || t === l.title) return;
+        if (LECT.some(x => x.id !== id && x.title.toLowerCase() === t.toLowerCase())) return toast('A lecture with that title already exists');
+        try { await window._fb.saveLecture(id, { title: t, order: l.order, deleted: false }); } catch (e) { toast(adminErrorText(e)); return; }
+        lecMap.get(id).title = t; rebuildLectures(); rebuildBank(); refreshAfterBankChange(); renderAdmin(); toast('Lecture renamed');
+    };
+    window.admLecDelete = async function(id) {
+        const l = lectureById(id); if (!l) return;
+        const qs = [...bankMap.values()].filter(q => q.lectureId === id);
+        if (!confirm(`Delete the lecture "${l.title}" and its ${qs.length} question${qs.length === 1 ? '' : 's'}?\n\nThey disappear for every student and this cannot be undone. Summaries attached to this lecture move to "General".`)) return;
+        const ops = qs.map(q => ({ col: 'questions', id: q.id, data: tombstoneQ(q) }));
+        ops.push({ col: 'lectures', id, data: { deleted: true, title: l.title, order: l.order } });
+        try { await window._fb.batchWrite(ops); } catch (e) { toast(adminErrorText(e)); return; }
+        qs.forEach(q => bankMap.delete(q.id)); lecMap.delete(id); rebuildLectures(); rebuildBank(); refreshAfterBankChange(); renderAdmin(); toast('Lecture deleted');
     };
 
     // ---- Bulk import tab ----
@@ -1539,6 +1602,18 @@ html, body {
             try { return (await getDoc(doc(db, "admins", auth.currentUser.uid))).exists(); } catch (e) { return false; }
         },
         async saveQuestion(id, data) { await setDoc(doc(db, "questions", id), { ...data, updatedAt: serverTimestamp() }, { merge: true }); },
+        async fetchLecturesSince(ms) {
+            const snap = await getDocs(query(collection(db, "lectures"), where("updatedAt", ">=", Timestamp.fromMillis(ms))));
+            return snap.docs.map(d => { const x = d.data(); return { ...x, id: d.id, updatedMs: tsMs(x.updatedAt), updatedAt: undefined }; });
+        },
+        async saveLecture(id, data) { await setDoc(doc(db, "lectures", id), { ...data, updatedAt: serverTimestamp() }, { merge: true }); },
+        async batchWrite(ops) {
+            for (let i = 0; i < ops.length; i += 400) {
+                const batch = writeBatch(db);
+                ops.slice(i, i + 400).forEach(o => batch.set(doc(db, o.col, o.id), { ...o.data, updatedAt: serverTimestamp() }, { merge: true }));
+                await batch.commit();
+            }
+        },
         async saveQuestionsBatch(items) {
             for (let i = 0; i < items.length; i += 400) {
                 const batch = writeBatch(db);
