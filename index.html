@@ -252,6 +252,21 @@ html, body {
 .src-btns { display: contents; }
 .choice-btn.selected { border-color: var(--teal); background: var(--teal-dim); color: var(--text); }
 .choice-btn.selected .choice-letter { background: var(--teal); color: #0d1117; border-color: var(--teal); font-weight: 600; }
+.card-type { font-family: var(--mono); font-size: 10.5px; color: var(--yellow); background: var(--yellow-dim); padding: 2px 7px; border-radius: 4px; }
+.written-box { padding: 4px 22px 14px; }
+.btn-show-answer { background: var(--teal); color: #0d1117; border: none; border-radius: 8px; padding: 11px 22px; font-family: var(--sans); font-size: 14px; font-weight: 600; cursor: pointer; }
+.btn-show-answer:hover { filter: brightness(1.08); }
+.model-answer { background: var(--teal-dim2); border: 1px solid var(--teal); border-radius: 8px; padding: 12px 14px; }
+.model-label { font-family: var(--mono); font-size: 10.5px; color: var(--teal); letter-spacing: .06em; text-transform: uppercase; margin-bottom: 6px; }
+.model-text { font-size: 14.5px; line-height: 1.7; color: var(--text); white-space: pre-wrap; }
+.model-notes { margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--border2); font-size: 12.5px; line-height: 1.6; color: var(--text2); white-space: pre-wrap; }
+.rate-label { font-family: var(--mono); font-size: 10.5px; color: var(--text3); letter-spacing: .06em; text-transform: uppercase; margin: 14px 0 6px; }
+.rate-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.rate-btn { flex: 1; min-width: 96px; padding: 9px 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg3); color: var(--text2); cursor: pointer; font-family: var(--sans); font-size: 13px; }
+.rate-btn:hover { border-color: var(--text3); }
+.rate-btn.sel-G { border-color: var(--green); background: var(--green-dim); color: var(--green); }
+.rate-btn.sel-P { border-color: var(--yellow); background: var(--yellow-dim); color: var(--yellow); }
+.rate-btn.sel-M { border-color: var(--red); background: var(--red-dim); color: var(--red); }
 .exam-controls { display: none; align-items: center; gap: 10px; }
 .ex-row { display: flex; align-items: center; gap: 10px; padding: 7px 4px; cursor: pointer; border-bottom: 1px solid var(--border2); }
 .ex-row input { width: 16px; height: 16px; accent-color: var(--teal); flex-shrink: 0; }
@@ -355,6 +370,7 @@ html, body {
       <div class="filters-bar">
         <span class="filter-label">Source:</span>
         <div class="src-btns" id="source-btns"></div>
+        <div class="src-btns" id="type-btns"></div>
         <div class="filter-sep"></div>
         <span class="filter-label">Order:</span>
         <button class="filter-btn active" data-order="random" onclick="setOrder(this,'random')">Random</button>
@@ -456,7 +472,8 @@ html, body {
 
   <script>
     const LS_KEY = 'peds_progress_v1'; 
-    let deck = [], idx = 0, shuffleMode = true, filterLecture = null, filterSource = '';
+    let deck = [], idx = 0, shuffleMode = true, filterLecture = null, filterSource = '', filterType = '';
+    let writtenShown = new Set();
     let mcqAnswers = {}, sessionCorrect = 0, sessionWrong = 0, syncTimeout = null;
     let safeAllQuestions = [];
     
@@ -489,6 +506,7 @@ html, body {
             questionNotes = keepValid(data.questionNotes);
             filterLecture = validLectures.has(data.filterLecture) ? data.filterLecture : null;
             filterSource = getSources().includes(data.filterSource) ? data.filterSource : '';
+            filterType = (data.filterType === 'written' && safeAllQuestions.some(q => q.type === 'written')) || data.filterType === 'mcq' ? data.filterType : '';
             shuffleMode = data.shuffleMode !== undefined ? data.shuffleMode : true;
             idx = parseInt(data.idx, 10);
             if (isNaN(idx)) idx = 0;
@@ -508,6 +526,7 @@ html, body {
 
         updateExamButton();
         buildSourceButtons();
+        buildTypeButtons();
         buildSidebar();
         deck = buildDeck();
         if (deck.length === 0) idx = 0;
@@ -533,6 +552,7 @@ html, body {
         let cards = safeAllQuestions.slice();
         if (filterLecture) cards = cards.filter(c => c.lecture === filterLecture);
         if (filterSource) cards = cards.filter(c => c.source === filterSource);
+        if (filterType) cards = cards.filter(c => (c.type || 'mcq') === filterType);
         if (shuffleMode) cards = shuffleArray(cards);
         return cards;
     }
@@ -592,11 +612,12 @@ html, body {
                 <div class="card-header">
                     <span class="card-qnum">${esc(c.num)}</span>
                     <span class="card-source">${esc(c.source)}</span>
+                    ${c.type === 'written' ? '<span class="card-type">✎ Written</span>' : ''}
                     <span class="card-lecture">${esc(c.lecture)}</span>
                 </div>
                 <div class="card-stem">${esc(c.q)}</div>
-                <div class="choices">${choicesHTML}</div>
-                ${resultHTML}
+                ${c.type === 'written' ? writtenHTML(c) : `<div class="choices">${choicesHTML}</div>`}
+                ${c.type === 'written' ? '' : resultHTML}
                 
                 <div style="padding: 0 22px 16px; display: flex; justify-content: flex-end;">
                     <button class="btn-note ${noteClass}" onclick="toggleNoteEditor()">📝 ${savedNote ? 'Edit Note' : 'Add Note'}</button>
@@ -610,6 +631,24 @@ html, body {
         document.getElementById('prog-fill').style.width = Math.round(((idx + 1) / deck.length) * 100) + '%';
     }
     
+    // Written question: read the question, tap "Show answer", then (optionally) rate yourself.
+    function writtenHTML(c) {
+        const rating = mcqAnswers[c.id], shown = !!rating || writtenShown.has(c.id);
+        if (!shown) return `<div class="written-box"><button class="btn-show-answer" onclick="showModelAnswer('${c.id}')">Show answer</button></div>`;
+        const btn = (r, label) => `<button class="rate-btn ${rating === r ? 'sel-' + r : ''}" onclick="rateWritten('${c.id}','${r}')">${label}</button>`;
+        return `<div class="written-box"><div class="model-answer"><div class="model-label">Model answer</div><div class="model-text">${esc(c.modelAnswer)}</div>${c.reason ? `<div class="model-notes">${esc(c.reason)}</div>` : ''}</div>
+            <div class="rate-label">How did you do? (optional)</div><div class="rate-row">${btn('G', '✓ Got it')}${btn('P', '◐ Partly')}${btn('M', '✗ Missed')}</div></div>`;
+    }
+    window.showModelAnswer = function(id) { writtenShown.add(id); renderCard(); };
+    window.rateWritten = function(id, r) {
+        const c = safeAllQuestions.find(q => q.id === id); if (!c || c.type !== 'written' || exam || !'GPM'.includes(r)) return;
+        const prev = mcqAnswers[id];
+        mcqAnswers[id] = r;
+        if (r !== 'G') { if (!wrongBank.includes(id)) wrongBank.push(id); }
+        else if (prev && prev !== 'G') wrongBank = wrongBank.filter(x => x !== id);   // fixing a mis-click; the bank stays permanent otherwise
+        recalculateSessionScore(); renderCard(); scheduleSave();
+    };
+
     window.toggleNoteEditor = function() {
         const el = document.getElementById('note-editor');
         if (el.style.display === 'none' || el.style.display === '') {
@@ -641,7 +680,8 @@ html, body {
     };
 
     window.pickAnswer = function(cardId, chosen, correct) {
-        if (exam || mcqAnswers[cardId]) return;
+        const qq = safeAllQuestions.find(x => x.id === cardId);
+        if (exam || mcqAnswers[cardId] || (qq && qq.type === 'written')) return;
         mcqAnswers[cardId] = chosen;
         
         if (chosen === correct) {
@@ -673,16 +713,32 @@ html, body {
         document.getElementById('btn-notebook').textContent = `📓 Notebook${totalItems ? ' ('+totalItems+')' : ''}`;
     }
 
-    function updateTitle() { document.getElementById('deck-title').textContent = (filterLecture || 'All Questions') + (filterSource ? ' · ' + filterSource : ''); }
+    function updateTitle() { document.getElementById('deck-title').textContent = (filterLecture || 'All Questions') + (filterSource ? ' · ' + filterSource : '') + (filterType ? ' · ' + (filterType === 'written' ? 'Written' : 'MCQ') : ''); }
     function updateMeta() { document.getElementById('deck-meta').textContent = `${deck.length} questions`; }
 
     window.setSource = function(src) {
         if (exam) exitExam(true);
         filterSource = src || '';
-        const pool = filterSource ? safeAllQuestions.filter(q => q.source === filterSource) : safeAllQuestions;
-        if (filterLecture && !pool.some(q => q.lecture === filterLecture)) filterLecture = null;
+        if (filterLecture && !poolQuestions().some(q => q.lecture === filterLecture)) filterLecture = null;
         syncSourceButtons(); buildSidebar(); loadDeck(); scheduleSave();
     };
+    window.setType = function(t) {
+        if (exam) exitExam(true);
+        filterType = t || '';
+        if (filterLecture && !poolQuestions().some(q => q.lecture === filterLecture)) filterLecture = null;
+        syncTypeButtons(); buildSidebar(); loadDeck(); scheduleSave();
+    };
+    // questions matching the source + type filters (the lecture list counts follow these)
+    function poolQuestions() {
+        return safeAllQuestions.filter(q => (!filterSource || q.source === filterSource) && (!filterType || (q.type || 'mcq') === filterType));
+    }
+    function buildTypeButtons() {
+        const box = byId('type-btns');
+        if (!safeAllQuestions.some(q => q.type === 'written')) { box.innerHTML = ''; filterType = ''; return; }   // only shown once written questions exist
+        box.innerHTML = [['', 'Any type'], ['mcq', 'MCQ'], ['written', 'Written']].map(([v, l]) => `<button class="filter-btn" data-type="${v}" onclick="setType(this.dataset.type)">${l}</button>`).join('');
+        syncTypeButtons();
+    }
+    function syncTypeButtons() { document.querySelectorAll('#type-btns [data-type]').forEach(b => b.classList.toggle('active', b.dataset.type === filterType)); }
     window.setOrder = function(btn, order) {
         if (exam) exitExam(true);
         shuffleMode = order === 'random';
@@ -692,14 +748,14 @@ html, body {
         loadDeck(); scheduleSave();
     };
     window.toggleShuffle = function(btn) { window.setOrder(null, shuffleMode ? 'sequential' : 'random'); };
-    window.clearFilters = function() { if (exam) exitExam(true); filterLecture = null; filterSource = ''; syncSourceButtons(); buildSidebar(); loadDeck(); scheduleSave(); };
+    window.clearFilters = function() { if (exam) exitExam(true); filterLecture = null; filterSource = ''; filterType = ''; syncSourceButtons(); syncTypeButtons(); buildSidebar(); loadDeck(); scheduleSave(); };
 
     function buildSidebar() {
         const list = document.getElementById('sb-list');
-        const pool = filterSource ? safeAllQuestions.filter(c => c.source === filterSource) : safeAllQuestions;
+        const pool = poolQuestions();
         const counts = {}; pool.forEach(c => counts[c.lecture] = (counts[c.lecture] || 0) + 1);
         const lectures = Object.keys(counts).sort();
-        document.getElementById('sb-section-label').textContent = filterSource ? `Lectures · ${filterSource}` : 'Lectures';
+        document.getElementById('sb-section-label').textContent = (filterSource || filterType) ? `Lectures · ${[filterSource, filterType === 'written' ? 'Written' : filterType === 'mcq' ? 'MCQ' : ''].filter(Boolean).join(' · ')}` : 'Lectures';
         let html = `<li class="sb-item sb-all ${!filterLecture ? 'active' : ''}" onclick="selectLecture(null)"><span class="sb-item-name">All Lectures</span><span class="sb-item-cnt">${pool.length}</span></li>`;
         lectures.forEach(lec => { html += `<li class="sb-item ${filterLecture === lec ? 'active' : ''}" data-lec="${esc(lec)}" onclick="selectLecture(this.dataset.lec)"><span class="sb-item-name">${esc(lec)}</span><span class="sb-item-cnt">${counts[lec]}</span></li>`; });
         list.innerHTML = html;
@@ -743,13 +799,13 @@ html, body {
             document.getElementById('practice-wrong-btn').textContent = `Practice ${wrongCards.length} Wrong`;
             let wbHtml = ``;
             wrongCards.forEach(c => {
-                const correct = c.choices[(c.ans || 'A').charCodeAt(0) - 65] || c.ans;
+                const correct = c.type === 'written' ? (c.modelAnswer || '') : (c.choices[(c.ans || 'A').charCodeAt(0) - 65] || c.ans);
                 const notePreview = questionNotes[c.id] ? `<div class="wq-note-preview">📝 ${esc(questionNotes[c.id])}</div>` : '';
                 
                 wbHtml += `<div class="wq-item" onclick="goToCard('${c.id}')">
                     <div class="wq-meta"><span class="wq-num">${esc(c.num)}</span><span class="wq-lec">${esc(c.lecture)}</span></div>
                     <div class="wq-stem">${esc(c.q.substring(0,80))}...</div>
-                    <div class="wq-answers"><span class="wq-correct">✓ ${c.ans}) ${esc(correct.substring(0,40))}</span></div>
+                    <div class="wq-answers"><span class="wq-correct">${c.type === 'written' ? '✎ ' + esc(correct.substring(0, 60)) : '✓ ' + c.ans + ') ' + esc(correct.substring(0, 40))}</span></div>
                     ${notePreview}
                 </div>`;
             });
@@ -765,9 +821,9 @@ html, body {
         const wrongCards = safeAllQuestions.filter(c => wrongBank.includes(c.id));
         if (!wrongCards.length) return;
         
-        wrongCards.forEach(c => delete mcqAnswers[c.id]);
+        wrongCards.forEach(c => { delete mcqAnswers[c.id]; writtenShown.delete(c.id); });
         deck = shuffleMode ? shuffleArray(wrongCards) : wrongCards;
-        idx = 0; filterLecture = null; filterSource = ''; syncSourceButtons(); recalculateSessionScore();
+        idx = 0; filterLecture = null; filterSource = ''; filterType = ''; syncSourceButtons(); syncTypeButtons(); recalculateSessionScore();
         document.getElementById('deck-title').textContent = `Practice: Wrong Questions`;
         document.getElementById('deck-meta').textContent = `${wrongCards.length} saved`;
         buildSidebar(); closeNotebookPanel(); renderCard(); updateNav(); toast('Practicing wrong questions'); scheduleSave();
@@ -776,7 +832,7 @@ html, body {
     window.goToCard = function(cardId) {
         const c = safeAllQuestions.find(q => q.id === cardId); if (!c) return;
         if (exam) exitExam(true);
-        filterLecture = c.lecture; filterSource = ''; syncSourceButtons(); deck = buildDeck();
+        filterLecture = c.lecture; filterSource = ''; filterType = ''; syncSourceButtons(); syncTypeButtons(); deck = buildDeck();
         idx = Math.max(0, deck.findIndex(q => q.id === cardId));
         buildSidebar(); closeNotebookPanel(); updateTitle(); updateMeta(); renderCard(); updateNav();
     };
@@ -841,7 +897,7 @@ html, body {
         setSyncDot('syncing');
         clearTimeout(syncTimeout);
         syncTimeout = setTimeout(async () => {
-            const dataToSave = { mcqAnswers, wrongBank, questionNotes, filterLecture, filterSource, shuffleMode, idx,
+            const dataToSave = { mcqAnswers, wrongBank, questionNotes, filterLecture, filterSource, filterType, shuffleMode, idx,
                 examSaved: examSaved ? { ids: examSaved.ids, a: packAnswers(examSaved.ids, examSaved.answers), t: examSaved.t || 0, s: examSaved.s || '', l: examSaved.l || [] } : null,
                 examHistory };
             try { localStorage.setItem(LS_KEY, JSON.stringify(dataToSave)); } catch(e) {}
@@ -889,15 +945,18 @@ html, body {
     const lectureById = id => LECT.find(l => l.id === id);
 
     function docToQuestion(x) {
-        const lec = lectureById(x.lectureId);
+        const lec = lectureById(x.lectureId), written = x.type === 'written';
+        // A written question has no choices; its model answer is shown on request and (optionally) self-rated G(ot it) / P(artly) / M(issed).
         return { id: x.id, lectureId: x.lectureId || '', lecture: lec ? lec.title : (x.lecture || 'Other'),
-            order: Number(x.order) || 0, source: String(x.source || 'Lecture').trim(), q: x.q || '',
-            choices: Array.isArray(x.choices) ? x.choices : [], ans: x.ans || 'A', reason: x.reason || '',
-            ref: x.ref || '', diff: x.diff || '', hidden: !!x.hidden };
+            order: Number(x.order) || 0, source: String(x.source || 'Lecture').trim(), type: written ? 'written' : 'mcq',
+            q: x.q || '', modelAnswer: written ? (x.modelAnswer || '') : '',
+            choices: written ? [] : (Array.isArray(x.choices) ? x.choices : []), ans: written ? 'G' : (x.ans || 'A'),
+            reason: x.reason || '', ref: x.ref || '', diff: x.diff || '', hidden: !!x.hidden };
     }
     function questionToDoc(q) {
-        return { lectureId: q.lectureId, lecture: q.lecture, source: q.source, q: q.q, choices: q.choices, ans: q.ans,
-            reason: q.reason || '', ref: q.ref || '', diff: q.diff || '', hidden: !!q.hidden, order: q.order };
+        return { lectureId: q.lectureId, lecture: q.lecture, source: q.source, type: q.type === 'written' ? 'written' : 'mcq', q: q.q,
+            modelAnswer: q.modelAnswer || '', choices: q.choices || [], ans: q.ans, reason: q.reason || '', ref: q.ref || '', diff: q.diff || '',
+            hidden: !!q.hidden, order: q.order };
     }
     function rebuildBank() {
         const lecPos = id => LECT.findIndex(l => l.id === id);
@@ -940,7 +999,7 @@ html, body {
         if (filterSource && !getSources().includes(filterSource)) filterSource = '';
         if (filterLecture && !safeAllQuestions.some(q => q.lecture === filterLecture && (!filterSource || q.source === filterSource))) filterLecture = null;
         byId('sb-total-count').textContent = `${safeAllQuestions.length} MCQs`;
-        buildSourceButtons(); buildSidebar(); if (!exam) loadDeck(true);
+        buildSourceButtons(); buildTypeButtons(); buildSidebar(); if (!exam) loadDeck(true);
     }
 
     // ═══════════════ SOURCE FILTER ═══════════════
@@ -990,6 +1049,7 @@ html, body {
             <div class="adm-toolbar">
                 <select class="adm-sel" onchange="admSetFilter('lecture', this.value)"><option value="">All lectures</option>${LECT.map(l => `<option value="${esc(l.id)}" ${f.lecture === l.id ? 'selected' : ''}>${esc(l.title)}</option>`).join('')}</select>
                 <select class="adm-sel" onchange="admSetFilter('source', this.value)"><option value="">All sources</option>${sources.map(s => `<option value="${esc(s)}" ${f.source === s ? 'selected' : ''}>${esc(s)}</option>`).join('')}</select>
+                <select class="adm-sel" onchange="admSetFilter('type', this.value)"><option value="">All types</option><option value="mcq" ${f.type === 'mcq' ? 'selected' : ''}>Multiple choice</option><option value="written" ${f.type === 'written' ? 'selected' : ''}>Written</option></select>
                 <input class="adm-in adm-grow" placeholder="Search question text…" value="${esc(f.text)}" oninput="admSetFilter('text', this.value)">
                 <button class="btn-primary" style="width:auto" onclick="admEdit(null)">+ New question</button>
             </div>
@@ -998,15 +1058,16 @@ html, body {
     }
     window.admSetFilter = function(k, v) { adm.f[k] = v; admRenderResults(); };
     function admRenderResults() {
+        if (!byId('adm-results')) return;     // the Questions tab isn't on screen
         const f = adm.f, t = f.text.trim().toLowerCase();
-        const rows = allQuestionsFull.filter(q => (!f.lecture || q.lectureId === f.lecture) && (!f.source || q.source === f.source) &&
-            (!t || (q.q + ' ' + q.choices.join(' ')).toLowerCase().includes(t)));
+        const rows = allQuestionsFull.filter(q => (!f.lecture || q.lectureId === f.lecture) && (!f.source || q.source === f.source) && (!f.type || (q.type || 'mcq') === f.type) &&
+            (!t || (q.q + ' ' + q.choices.join(' ') + ' ' + (q.modelAnswer || '')).toLowerCase().includes(t)));
         const shown = rows.slice(0, 60);
         byId('adm-results').innerHTML = `<div class="adm-count">${rows.length} question${rows.length === 1 ? '' : 's'}${rows.length > shown.length ? ` · showing the first ${shown.length}, narrow the filters to see more` : ''}</div>` +
             (shown.map(q => `
             <div class="adm-row ${q.hidden ? 'is-hidden' : ''}">
                 <div class="adm-row-main">
-                    <div class="wq-meta"><span class="wq-num">#${q.order}</span><span class="wq-lec">${esc(q.lecture)}</span><span class="card-source">${esc(q.source)}</span>${q.hidden ? '<span class="adm-hidden-badge">hidden</span>' : ''}</div>
+                    <div class="wq-meta"><span class="wq-num">#${q.order}</span><span class="wq-lec">${esc(q.lecture)}</span><span class="card-source">${esc(q.source)}</span>${q.type === 'written' ? '<span class="card-type">✎ Written</span>' : ''}${q.hidden ? '<span class="adm-hidden-badge">hidden</span>' : ''}</div>
                     <div class="wq-stem">${esc(q.q.length > 150 ? q.q.slice(0, 150) + '…' : q.q)}</div>
                 </div>
                 <div class="adm-row-actions">
@@ -1027,20 +1088,31 @@ html, body {
     };
     function admQuestionForm() {
         const ed = adm.editing, q = ed.id ? bankMap.get(ed.id) : null;
-        const d = q || { lectureId: adm.f.lecture, source: adm.f.source || adm.lastSource || 'Lecture', q: '', choices: [], ans: '', reason: '', ref: '', diff: 'M', hidden: false };
-        const letters = ['A', 'B', 'C', 'D', 'E', 'F'], n = Math.max(4, (d.choices || []).length);
+        const d = q || { lectureId: adm.f.lecture, source: adm.f.source || adm.lastSource || 'Lecture', type: adm.f.type === 'written' ? 'written' : 'mcq', q: '', choices: [], ans: '', modelAnswer: '', reason: '', ref: '', diff: 'M', hidden: false };
+        const isW = d.type === 'written', letters = ['A', 'B', 'C', 'D', 'E', 'F'], n = Math.max(4, (d.choices || []).length);
         const sources = getSources();
         byId('adm-content').innerHTML = `
             <div class="adm-toolbar"><button class="btn-icon" onclick="admCancelEdit()">← Back to list</button><strong style="font-size:14px">${q ? 'Edit question' : 'New question'}</strong></div>
+            <label class="adm-label">Type${q ? ' (fixed once created)' : ''}</label>
+            <div class="adm-toolbar" style="margin-bottom:0">
+                <label class="adm-check" style="margin:0"><input type="radio" name="f-type" value="mcq" ${!isW ? 'checked' : ''} ${q ? 'disabled' : ''} onchange="admTypeToggle()"> Multiple choice</label>
+                <label class="adm-check" style="margin:0 0 0 14px"><input type="radio" name="f-type" value="written" ${isW ? 'checked' : ''} ${q ? 'disabled' : ''} onchange="admTypeToggle()"> Written (question + model answer)</label>
+            </div>
             <label class="adm-label">Lecture</label>
             <select id="f-lecture" class="adm-sel" style="width:100%"><option value="">— choose —</option>${LECT.map(l => `<option value="${esc(l.id)}" ${d.lectureId === l.id ? 'selected' : ''}>${esc(l.title)}</option>`).join('')}</select>
             <label class="adm-label">Source (e.g. Lecture, Exam Model, Formative 40, MID 39)</label>
             <input id="f-source" class="adm-in" list="src-list" value="${esc(d.source)}"><datalist id="src-list">${sources.map(s => `<option value="${esc(s)}">`).join('')}</datalist>
             <label class="adm-label">Question</label>
             <textarea id="f-q" class="adm-ta">${esc(d.q)}</textarea>
-            <label class="adm-label">Answer choices (select the correct one)</label>
-            ${Array.from({ length: n }, (_, i) => `<div class="adm-choice"><input type="radio" name="f-ans" value="${letters[i]}" ${d.ans === letters[i] ? 'checked' : ''}><span class="choice-letter">${letters[i]}</span><input class="adm-in f-choice" value="${esc((d.choices || [])[i] || '')}"></div>`).join('')}
-            <label class="adm-label">Explanation (optional)</label>
+            <div id="f-mcq-block" style="${isW ? 'display:none' : ''}">
+                <label class="adm-label">Answer choices (select the correct one)</label>
+                ${Array.from({ length: n }, (_, i) => `<div class="adm-choice"><input type="radio" name="f-ans" value="${letters[i]}" ${d.ans === letters[i] ? 'checked' : ''}><span class="choice-letter">${letters[i]}</span><input class="adm-in f-choice" value="${esc((d.choices || [])[i] || '')}"></div>`).join('')}
+            </div>
+            <div id="f-written-block" style="${isW ? '' : 'display:none'}">
+                <label class="adm-label">Model answer (shown when the student taps "Show answer")</label>
+                <textarea id="f-model" class="adm-ta" style="min-height:150px">${esc(d.modelAnswer || '')}</textarea>
+            </div>
+            <label class="adm-label">${isW ? 'Extra notes (optional, shown under the model answer)' : 'Explanation (optional)'}</label>
             <textarea id="f-reason" class="adm-ta">${esc(d.reason)}</textarea>
             <div class="adm-two">
                 <div><label class="adm-label">Reference (optional)</label><input id="f-ref" class="adm-in" value="${esc(d.ref)}"></div>
@@ -1050,22 +1122,33 @@ html, body {
             <div id="adm-err" class="adm-err"></div>
             <div class="adm-toolbar" style="margin-top:14px"><button class="btn-primary" id="f-save" style="width:auto" onclick="admSaveQuestion()">Save</button><button class="btn-icon" onclick="admCancelEdit()">Cancel</button>${q ? `<button class="btn-icon" style="color:var(--red);margin-left:auto" onclick="admDelete('${q.id}')">Delete question</button>` : ''}</div>`;
     }
+    window.admTypeToggle = function() {
+        const w = document.querySelector('input[name="f-type"]:checked').value === 'written';
+        byId('f-mcq-block').style.display = w ? 'none' : ''; byId('f-written-block').style.display = w ? '' : 'none';
+    };
     window.admSaveQuestion = async function() {
         const err = m => { byId('adm-err').textContent = m; };
+        const existing = adm.editing.id ? bankMap.get(adm.editing.id) : null;
+        const type = existing ? existing.type : document.querySelector('input[name="f-type"]:checked').value;
         const lectureId = byId('f-lecture').value, source = byId('f-source').value.trim(), qText = byId('f-q').value.trim();
-        const choices = [...document.querySelectorAll('.f-choice')].map(i => i.value.trim());
-        const ansEl = document.querySelector('input[name="f-ans"]:checked');
         const problems = [];
         if (!lectureById(lectureId)) problems.push('Choose a lecture.');
         if (!source) problems.push('Enter a source (for example Lecture, Exam Model or Formative 40).');
         if (!qText) problems.push('Enter the question text.');
-        if (choices.some(c => !c)) problems.push('Fill in every answer choice.');
-        else if (new Set(choices.map(c => c.toLowerCase())).size !== choices.length) problems.push('Two answer choices are identical.');
-        if (!ansEl) problems.push('Select the correct answer.');
+        let choices = [], ans = 'G', modelAnswer = '';
+        if (type === 'written') {
+            modelAnswer = byId('f-model').value.trim();
+            if (!modelAnswer) problems.push('Enter the model answer.');
+        } else {
+            choices = [...document.querySelectorAll('.f-choice')].map(i => i.value.trim());
+            const ansEl = document.querySelector('input[name="f-ans"]:checked');
+            if (choices.some(c => !c)) problems.push('Fill in every answer choice.');
+            else if (new Set(choices.map(c => c.toLowerCase())).size !== choices.length) problems.push('Two answer choices are identical.');
+            if (!ansEl) problems.push('Select the correct answer.'); else ans = ansEl.value;
+        }
         if (problems.length) return err(problems.join('\n'));
-        const existing = adm.editing.id ? bankMap.get(adm.editing.id) : null;
         const id = existing ? existing.id : newId(lectureId, 0);
-        const doc = { lectureId, lecture: lectureById(lectureId).title, source, q: qText, choices, ans: ansEl.value,
+        const doc = { lectureId, lecture: lectureById(lectureId).title, source, type, q: qText, modelAnswer, choices, ans,
             reason: byId('f-reason').value.trim(), ref: byId('f-ref').value.trim(), diff: byId('f-diff').value, hidden: byId('f-hidden').checked,
             order: existing ? existing.order : nextOrder(lectureId) };
         byId('f-save').disabled = true; err('');
@@ -1128,8 +1211,8 @@ html, body {
         const lecSel = `<label class="adm-label">Lecture (used for questions without a "Lecture:" line above them)</label>
             <select id="imp-lecture" class="adm-sel" style="width:100%"><option value="">— choose —</option>${LECT.map(l => `<option value="${esc(l.id)}" ${adm.impLecture === l.id ? 'selected' : ''}>${esc(l.title)}</option>`).join('')}</select>`;
         const help = mode === 'text'
-            ? `<div class="adm-help">Paste questions as plain text, one after another:<br><code>1. Which vitamin deficiency causes scurvy?</code><br><code>A. Vitamin A &nbsp; B. Vitamin C &nbsp; C. Vitamin D &nbsp; D. Vitamin K</code> (options can be on separate lines or one line)<br><code>Answer: B</code> &nbsp;and optionally&nbsp; <code>Explanation: …</code><br>Instead of "Answer:" lines you can put an <strong>answer key</strong> at the end (<code>1. B</code> per line, or a table: number | letter | reason). To change lecture in the middle, add a line such as <code>Lecture: Rickets</code>.</div>`
-            : `<div class="adm-help">Paste a JSON array (or choose a .json file). Each question needs <code>lecture</code> (exact lecture title or id), <code>q</code>, <code>opts</code> (2–6 choices) and <code>correct</code> (0-based index or a letter). Optional: <code>source</code>, <code>reason</code>, <code>ref</code>, <code>diff</code> (E/M/H).</div>`;
+            ? `<div class="adm-help">Paste questions as plain text, one after another:<br><code>1. Which vitamin deficiency causes scurvy?</code><br><code>A. Vitamin A &nbsp; B. Vitamin C &nbsp; C. Vitamin D &nbsp; D. Vitamin K</code> (options can be on separate lines or one line)<br><code>Answer: B</code> &nbsp;and optionally&nbsp; <code>Explanation: …</code><br>Instead of "Answer:" lines you can put an <strong>answer key</strong> at the end (<code>1. B</code> per line, or a table: number | letter | reason). To change lecture in the middle, add a line such as <code>Lecture: Rickets</code>.<br><strong>Written questions:</strong> write the question, then <code>Model answer: …</code> (it can span several lines; no A./B. options needed).</div>`
+            : `<div class="adm-help">Paste a JSON array (or choose a .json file). Each question needs <code>lecture</code> (exact lecture title or id), <code>q</code>, <code>opts</code> (2–6 choices) and <code>correct</code> (0-based index or a letter). Optional: <code>source</code>, <code>reason</code>, <code>ref</code>, <code>diff</code> (E/M/H). For a <strong>written</strong> question use <code>"type": "written"</code> and <code>modelAnswer</code> instead of <code>opts</code>/<code>correct</code>.</div>`;
         byId('adm-content').innerHTML = `
             <div class="adm-tabs" style="margin-bottom:10px"><button class="adm-tab ${mode === 'text' ? 'active' : ''}" onclick="admImpMode('text')">Quick paste (text)</button><button class="adm-tab ${mode === 'json' ? 'active' : ''}" onclick="admImpMode('json')">JSON</button></div>
             ${help}${mode === 'text' ? lecSel : ''}
@@ -1164,16 +1247,25 @@ html, body {
             if ((m = t.match(/^(?:Q(?:uestion)?\s*)?(\d{1,4})\s*[.):\-]\s*(\S.*)$/i)) && !/^\d{1,4}\s*[.):\-]\s*[A-F]\s*$/.test(t)) { cur = { num: +m[1], lec: curLec, lines: [m[2]], gap: false, closed: false, seenOpt: /(?:^|\s)\(?[A-F][.)]\s/.test(m[2]) }; blocks.push(cur); return; }
             if (cur) {
                 if (t.startsWith('|') || cur.closed) return;
-                const looksOpt = /(?:^|\s)\(?[A-F][.)]\s/.test(t), looksMeta = /^(correct\s+answer|answer|ans|correct|explanation|reason|rationale)\s*[:=]/i.test(t);
+                const looksOpt = /(?:^|\s)\(?[A-F][.)]\s/.test(t), looksMeta = /^(correct\s+answer|model\s+answer|answer|ans|correct|explanation|reason|rationale|notes?)\s*[:=]/i.test(t);
                 if (cur.gap && cur.seenOpt && !looksOpt && !looksMeta) { cur.closed = true; return; }   // prose after the last question
                 if (looksOpt) cur.seenOpt = true;
                 cur.gap = false; cur.lines.push(t);
             }
         });
         const items = [], errors = [];
+        const writtenItem = (bk, stemRaw, ansRaw) => {
+            let model = String(ansRaw || ''), notes = '';
+            const nm = model.match(/(?:^|\s)(?:notes?|explanation|reason|rationale)\s*:\s*([\s\S]*)$/i);
+            if (nm) { notes = nm[1].trim(); model = model.slice(0, nm.index); }
+            return { lecture: bk.lec, type: 'written', q: stemRaw.replace(/\s+/g, ' ').trim(), modelAnswer: model.trim(), reason: notes };
+        };
         blocks.forEach(bk => {
             const tag = `Q${bk.num}`;
             let body = bk.lines.join('\n').trim(), letter = '', reason = '', mm;
+            const orig = body;
+            const wm = body.match(/(?:^|\s)model\s+answer\s*:\s*([\s\S]*)$/i);                     // "Model answer: …" marks a written question
+            if (wm) { items.push(writtenItem(bk, body.slice(0, wm.index), wm[1])); return; }
             const am = [...body.matchAll(/(?:^|\s)(?:correct\s+answer|answer|ans|correct)\s*[:=]\s*\(?([A-Fa-f])\)?(?![A-Za-z])/gi)].pop();
             if (am) { letter = am[1].toUpperCase(); body = body.slice(0, am.index) + ' ' + body.slice(am.index + am[0].length); }
             if ((mm = body.match(/(?:^|\s)(?:explanation|reason|rationale)\s*:\s*([\s\S]*)$/i))) { reason = mm[1].replace(/\s+/g, ' ').trim(); body = body.slice(0, mm.index); }
@@ -1186,7 +1278,12 @@ html, body {
                 for (let li = 1; li < 6; li++) { const nx = marks.find(x => x.L === 'ABCDEF'[li] && x.at > c[c.length - 1].at); if (!nx) break; c.push(nx); }
                 if (c.length >= 2) { chain = c; break; }
             }
-            if (chain.length < 2) { errors.push(`${tag}: couldn't find answer options (A., B., …)`); return; }
+            if (chain.length < 2) {
+                // no A./B./C. options: a written question if it has "Answer: <real text>"
+                const fb = orig.match(/(?:^|\s)(?:answer|ans)\s*:\s*(?![A-Fa-f]\s*$)(\S[\s\S]*)$/i);
+                if (fb && fb[1].trim().length > 1) { items.push(writtenItem(bk, orig.slice(0, fb.index), fb[1])); return; }
+                errors.push(`${tag}: couldn't find answer options (A., B., …) or a "Model answer:"`); return;
+            }
             const stem = flat.slice(0, chain[0].at).trim();
             let ci = -1;
             const opts = chain.map((c, i) => {
@@ -1225,18 +1322,29 @@ html, body {
             const tag = `#${i + 1}`;
             if (!x || typeof x !== 'object') { errors.push(`${tag}: not an object`); return; }
             const lec = resolveLecture(x.lecture); if (!lec) { errors.push(`${tag}: ${x.lecture ? `unknown lecture "${x.lecture}"` : 'no lecture chosen'}`); return; }
-            const choices = (x.opts || x.choices); const qText = String(x.q || '').trim();
+            const qText = String(x.q || '').trim();
             if (!qText) { errors.push(`${tag}: missing question text`); return; }
+            const source = String(x.source || x.label || defaultSource || '').trim(); if (!source) { errors.push(`${tag}: no source (set one in the question or the default source box)`); return; }
+            const modelRaw = x.modelAnswer !== undefined ? x.modelAnswer : (x.model !== undefined ? x.model : x.answer);
+            const isWritten = String(x.type || '').toLowerCase() === 'written' || (!x.opts && !x.choices && typeof modelRaw === 'string' && modelRaw.trim().length > 1);
+            const dd = String(x.diff || '').trim().charAt(0).toUpperCase(), diff = 'EMH'.includes(dd) && dd ? dd : '';
+            const key = normStem(qText); if (existing.has(key) || seen.has(key)) { dups++; return; }
+            if (isWritten) {
+                const model = String(modelRaw || '').trim();
+                if (!model) { errors.push(`${tag}: written question has no model answer`); return; }
+                seen.add(key);
+                valid.push({ lectureId: lec.id, lecture: lec.title, source, type: 'written', q: qText, modelAnswer: model, choices: [], ans: 'G', reason: String(x.reason || x.notes || '').trim(), ref: String(x.ref || '').trim(), diff, hidden: false });
+                return;
+            }
+            const choices = (x.opts || x.choices);
             if (!Array.isArray(choices) || choices.length < 2 || choices.length > 6 || choices.some(c => !String(c).trim())) { errors.push(`${tag}: "opts" must be 2–6 non-empty choices`); return; }
             const ch = choices.map(c => String(c).trim());
             if (new Set(ch.map(c => c.toLowerCase())).size !== ch.length) { errors.push(`${tag}: duplicate answer choices`); return; }
             let raw = x.correct !== undefined ? x.correct : x.ans, ai = -1;
             if (typeof raw === 'number') ai = raw; else if (/^[A-Fa-f]$/.test(String(raw).trim())) ai = 'ABCDEF'.indexOf(String(raw).trim().toUpperCase()); else if (/^\d$/.test(String(raw).trim())) ai = parseInt(raw, 10);
             if (!(ai >= 0 && ai < ch.length)) { errors.push(`${tag}: "correct" is missing or out of range`); return; }
-            const source = String(x.source || x.label || defaultSource || '').trim(); if (!source) { errors.push(`${tag}: no source (set one in the question or the default source box)`); return; }
-            const key = normStem(qText); if (existing.has(key) || seen.has(key)) { dups++; return; } seen.add(key);
-            const d = String(x.diff || '').trim().charAt(0).toUpperCase();
-            valid.push({ lectureId: lec.id, lecture: lec.title, source, q: qText, choices: ch, ans: 'ABCDEF'[ai], reason: String(x.reason || '').trim(), ref: String(x.ref || '').trim(), diff: 'EMH'.includes(d) && d ? d : '', hidden: false });
+            seen.add(key);
+            valid.push({ lectureId: lec.id, lecture: lec.title, source, type: 'mcq', q: qText, modelAnswer: '', choices: ch, ans: 'ABCDEF'[ai], reason: String(x.reason || '').trim(), ref: String(x.ref || '').trim(), diff, hidden: false });
         });
         return { valid, errors, dups, total: flat.length };
     }
@@ -1253,7 +1361,8 @@ html, body {
         if (r.fatal) { adm.pending = []; byId('imp-go').disabled = true; rep.innerHTML = `<div class="adm-err">${esc(r.fatal)}</div>`; return; }
         adm.pending = r.valid; byId('imp-go').disabled = !r.valid.length;
         const perLec = {}; r.valid.forEach(q => perLec[q.lecture] = (perLec[q.lecture] || 0) + 1);
-        const sample = r.valid[0] ? `<div class="adm-row" style="display:block;margin-top:10px"><div class="adm-count" style="margin:0 0 4px">First question as it will be imported</div><div class="wq-stem">${esc(r.valid[0].q)}</div>${r.valid[0].choices.map((c, i) => `<div style="font-size:12.5px;margin-top:3px;color:${'ABCDEF'[i] === r.valid[0].ans ? 'var(--green)' : 'var(--text2)'}">${'ABCDEF'[i]}. ${esc(c)}${'ABCDEF'[i] === r.valid[0].ans ? ' ✓' : ''}</div>`).join('')}</div>` : '';
+        const v0 = r.valid[0];
+        const sample = v0 ? `<div class="adm-row" style="display:block;margin-top:10px"><div class="adm-count" style="margin:0 0 4px">First question as it will be imported${v0.type === 'written' ? ' (written)' : ''}</div><div class="wq-stem">${esc(v0.q)}</div>${v0.type === 'written' ? `<div style="font-size:12.5px;margin-top:6px;color:var(--green);white-space:pre-wrap">${esc(v0.modelAnswer.length > 300 ? v0.modelAnswer.slice(0, 300) + '…' : v0.modelAnswer)}</div>` : v0.choices.map((c, i) => `<div style="font-size:12.5px;margin-top:3px;color:${'ABCDEF'[i] === v0.ans ? 'var(--green)' : 'var(--text2)'}">${'ABCDEF'[i]}. ${esc(c)}${'ABCDEF'[i] === v0.ans ? ' ✓' : ''}</div>`).join('')}</div>` : '';
         rep.innerHTML = `<div class="adm-ok">${r.valid.length} ready to import (of ${r.total})${r.dups ? ` · ${r.dups} skipped as duplicates` : ''}${r.errors.length ? ` · ${r.errors.length} with problems` : ''}</div>` +
             (r.valid.length ? `<div class="adm-count">${Object.entries(perLec).map(([l, n]) => `${esc(l)}: ${n}`).join(' · ')}</div>` : '') + sample +
             (r.errors.length ? `<div class="adm-err">${r.errors.slice(0, 15).map(esc).join('\n')}${r.errors.length > 15 ? `\n…and ${r.errors.length - 15} more` : ''}</div>` : '');
@@ -1402,7 +1511,7 @@ html, body {
     window.showExamSetup = function() {
         examSel = new Set(filterLecture ? [filterLecture] : []);
         byId('exam-body').innerHTML = `
-            ${examSavedHtml()}<div class="adm-help">Choose lectures and how many questions. Answers are hidden until you finish; your results are then added to your progress and wrong bank.</div>
+            ${examSavedHtml()}<div class="adm-help">Choose lectures and how many questions (exams use multiple-choice questions only). Answers are hidden until you finish; your results are then added to your progress and wrong bank.</div>
             <label class="adm-label">Source</label>
             <select id="ex-source" class="adm-sel" style="width:100%" onchange="examRecalc()"><option value="">All sources</option>${getSources().map(s => `<option value="${esc(s)}" ${s === filterSource ? 'selected' : ''}>${esc(s)}</option>`).join('')}</select>
             <div class="adm-toolbar" style="margin-top:14px"><label class="adm-label" style="margin:0;flex:1">Lectures</label><button class="btn-icon" onclick="examSelectAll(true)">Select all</button><button class="btn-icon" onclick="examSelectAll(false)">Clear</button></div>
@@ -1417,10 +1526,10 @@ html, body {
         examRecalc(); byId('exam-overlay').classList.add('visible');
     };
     window.closeExamSetup = function() { byId('exam-overlay').classList.remove('visible'); };
-    function examPool() { const src = byId('ex-source').value; return safeAllQuestions.filter(c => examSel.has(c.lecture) && (!src || c.source === src)); }
+    function examPool() { const src = byId('ex-source').value; return safeAllQuestions.filter(c => c.type !== 'written' && examSel.has(c.lecture) && (!src || c.source === src)); }
     window.examRecalc = function() {
         const src = byId('ex-source').value, counts = {};
-        safeAllQuestions.forEach(c => { if (!src || c.source === src) counts[c.lecture] = (counts[c.lecture] || 0) + 1; });
+        safeAllQuestions.forEach(c => { if (c.type !== 'written' && (!src || c.source === src)) counts[c.lecture] = (counts[c.lecture] || 0) + 1; });
         examSel.forEach(l => { if (!counts[l]) examSel.delete(l); });
         byId('ex-lectures').innerHTML = Object.keys(counts).sort().map(l =>
             `<label class="ex-row"><input type="checkbox" data-lec="${esc(l)}" ${examSel.has(l) ? 'checked' : ''} onchange="examToggle(this)"><span class="ex-name">${esc(l)}</span><span class="sb-item-cnt">${counts[l]}</span></label>`).join('') || '<div class="wq-empty">No questions for this source.</div>';
@@ -1429,7 +1538,7 @@ html, body {
         byId('exam-start').disabled = !pool;
     };
     window.examToggle = function(el) { if (el.checked) examSel.add(el.dataset.lec); else examSel.delete(el.dataset.lec); examRecalc(); };
-    window.examSelectAll = function(on) { const src = byId('ex-source').value; examSel = new Set(on ? safeAllQuestions.filter(c => !src || c.source === src).map(c => c.lecture) : []); examRecalc(); };
+    window.examSelectAll = function(on) { const src = byId('ex-source').value; examSel = new Set(on ? safeAllQuestions.filter(c => c.type !== 'written' && (!src || c.source === src)).map(c => c.lecture) : []); examRecalc(); };
     window.examSetN = function(n) { byId('ex-n').value = n === 'max' ? Math.max(1, examPool().length) : n; examRecalc(); };
 
     function sampleExam(pool, n, balanced) {
