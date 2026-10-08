@@ -360,6 +360,7 @@ html, body {
         <button class="btn-icon shuffle-on" onclick="toggleShuffle(this)" id="btn-shuffle" title="Shuffle">⇌ Shuffle ON</button>
         <button class="btn-icon" id="btn-exam" onclick="showExamSetup()" title="Generate an exam">📝 Exam</button>
         <button class="btn-icon" onclick="showSummaries()" title="Summaries">📄 Summaries</button>
+        <button class="btn-icon" onclick="showPdfSetup()" title="Download questions as a PDF">⬇ PDF</button>
         <button class="btn-icon" id="btn-admin" style="display:none" onclick="openAdmin()" title="Admin panel">⚙ Admin</button>
         <button class="btn-icon" onclick="showNotebookPanel()" id="btn-notebook" title="Notes & Wrong Answers">📓 Notebook</button>
         <button class="btn-icon" onclick="showStats()" title="Statistics">◎ Stats</button>
@@ -456,6 +457,14 @@ html, body {
     <div class="panel preview-panel">
       <div class="panel-header"><h2 id="preview-title" style="font-size:14px"></h2><div style="display:flex;gap:10px;align-items:center"><a id="preview-open" class="btn-icon sum-link" target="_blank" rel="noopener noreferrer">Open in Drive ↗</a><button class="panel-close" onclick="closePreview()">×</button></div></div>
       <iframe id="preview-frame" src="about:blank" allow="autoplay"></iframe>
+    </div>
+  </div>
+
+  <div class="overlay" id="pdf-overlay">
+    <div class="panel wide">
+      <div class="panel-header"><h2>⬇ Download as PDF</h2><button class="panel-close" onclick="closePdfSetup()">×</button></div>
+      <div class="panel-body" id="pdf-body"></div>
+      <div class="panel-footer"><button class="btn-icon" onclick="closePdfSetup()">Cancel</button><button class="btn-primary" id="pdf-go" style="width:auto;" onclick="downloadPdf()">Download PDF</button></div>
     </div>
   </div>
 
@@ -1643,6 +1652,153 @@ html, body {
         byId('nav-score').style.display = ''; byId('exam-controls').style.display = 'none';
         closeExamResult(); updateExamButton();
         if (!silent) { loadDeck(); if (paused) toast('Exam paused. Resume it from the Exam button.'); }
+    };
+
+    // ═══════════════ PDF DOWNLOAD ═══════════════
+    // Builds the PDF on the user's device with pdfmake (loaded from a CDN only when needed, then cached by the browser).
+    const PDFMAKE_URL = 'https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/pdfmake.min.js';
+    const PDFVFS_URL = 'https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/vfs_fonts.js';
+    let pdfLibPromise = null, pdfSel = new Set();
+    function loadPdfLib() {
+        if (window.pdfMake && window.pdfMake.vfs) return Promise.resolve();
+        if (pdfLibPromise) return pdfLibPromise;
+        const load = src => new Promise((res, rej) => {
+            const el = document.createElement('script'); el.src = src; el.onload = res; el.onerror = () => rej(new Error('load: ' + src));
+            document.head.appendChild(el);
+        });
+        pdfLibPromise = load(PDFMAKE_URL).then(() => load(PDFVFS_URL)).catch(e => { pdfLibPromise = null; throw e; });
+        return pdfLibPromise;
+    }
+    const pdfClean = t => String(t == null ? '' : t).replace(/[\u200B-\u200D\uFEFF]/g, '').replace(/\u00A0/g, ' ').replace(/[ \t]+\n/g, '\n').trim();
+
+    window.showPdfSetup = function() {
+        pdfSel = new Set(filterLecture ? [filterLecture] : []);
+        const hasWritten = safeAllQuestions.some(q => q.type === 'written');
+        byId('pdf-body').innerHTML = `
+            <div class="adm-help">Make a PDF of the questions from the lectures you choose. It is created on your device.</div>
+            <label class="adm-label">Title</label>
+            <input id="pdf-title" class="adm-in" value="Pediatrics Question Bank" maxlength="90">
+            <div class="adm-toolbar" style="margin-top:14px"><label class="adm-label" style="margin:0;flex:1">Lectures</label><button class="btn-icon" onclick="pdfSelectAll(true)">Select all</button><button class="btn-icon" onclick="pdfSelectAll(false)">Clear</button></div>
+            <div id="pdf-lectures"></div>
+            <div class="adm-two" style="grid-template-columns:1fr ${hasWritten ? '1fr' : ''}">
+                <div><label class="adm-label">Source</label><select id="pdf-source" class="adm-sel" style="width:100%" onchange="pdfRecalc()"><option value="">All sources</option>${getSources().map(x => `<option value="${esc(x)}" ${x === filterSource ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select></div>
+                ${hasWritten ? `<div><label class="adm-label">Type</label><select id="pdf-type" class="adm-sel" style="width:100%" onchange="pdfRecalc()"><option value="">All types</option><option value="mcq">Multiple choice</option><option value="written">Written</option></select></div>` : ''}
+            </div>
+            <label class="adm-label">Answers</label>
+            <label class="adm-check" style="margin-top:4px"><input type="radio" name="pdf-ans" value="key" checked onchange="pdfRecalc()"> Questions first, answer key at the end</label>
+            <label class="adm-check" style="margin-top:6px"><input type="radio" name="pdf-ans" value="inline" onchange="pdfRecalc()"> Answer shown under each question</label>
+            <label class="adm-check" style="margin-top:6px"><input type="radio" name="pdf-ans" value="none" onchange="pdfRecalc()"> Questions only (no answers)</label>
+            <label class="adm-check"><input type="checkbox" id="pdf-expl" checked> Include explanations</label>
+            <label class="adm-check"><input type="checkbox" id="pdf-src"> Show each question's source (e.g. Formative 40)</label>
+            <label class="adm-check"><input type="checkbox" id="pdf-shuffle"> Shuffle the order within each lecture</label>
+            <div id="pdf-summary" class="adm-count" style="margin-top:12px"></div>`;
+        pdfRecalc(); byId('pdf-overlay').classList.add('visible');
+    };
+    window.closePdfSetup = function() { byId('pdf-overlay').classList.remove('visible'); };
+    function pdfFilters() { return { source: byId('pdf-source').value, type: byId('pdf-type') ? byId('pdf-type').value : '' }; }
+    const pdfMatch = (q, f) => (!f.source || q.source === f.source) && (!f.type || (q.type || 'mcq') === f.type);
+    window.pdfRecalc = function() {
+        const f = pdfFilters(), counts = {};
+        safeAllQuestions.forEach(q => { if (pdfMatch(q, f)) counts[q.lecture] = (counts[q.lecture] || 0) + 1; });
+        pdfSel.forEach(l => { if (!counts[l]) pdfSel.delete(l); });
+        byId('pdf-lectures').innerHTML = Object.keys(counts).sort().map(l =>
+            `<label class="ex-row"><input type="checkbox" data-lec="${esc(l)}" ${pdfSel.has(l) ? 'checked' : ''} onchange="pdfToggle(this)"><span class="ex-name">${esc(l)}</span><span class="sb-item-cnt">${counts[l]}</span></label>`).join('') || '<div class="wq-empty">No questions match these filters.</div>';
+        const total = [...pdfSel].reduce((n, l) => n + (counts[l] || 0), 0);
+        byId('pdf-summary').textContent = total ? `${total} question${total === 1 ? '' : 's'} from ${pdfSel.size} lecture${pdfSel.size === 1 ? '' : 's'} will be included` : 'Select at least one lecture.';
+        byId('pdf-go').disabled = !total;
+        const mode = document.querySelector('input[name="pdf-ans"]:checked').value;
+        byId('pdf-expl').disabled = mode === 'none'; byId('pdf-expl').parentElement.style.opacity = mode === 'none' ? '.5' : '';
+    };
+    window.pdfToggle = function(el) { if (el.checked) pdfSel.add(el.dataset.lec); else pdfSel.delete(el.dataset.lec); pdfRecalc(); };
+    window.pdfSelectAll = function(on) { const f = pdfFilters(); pdfSel = new Set(on ? safeAllQuestions.filter(q => pdfMatch(q, f)).map(q => q.lecture) : []); pdfRecalc(); };
+    function pdfOptions() {
+        const f = pdfFilters();
+        return { title: pdfClean(byId('pdf-title').value) || 'Question Bank', lectures: [...pdfSel].sort(), source: f.source, type: f.type,
+            answers: document.querySelector('input[name="pdf-ans"]:checked').value, explanations: byId('pdf-expl').checked && !byId('pdf-expl').disabled,
+            showSource: byId('pdf-src').checked, shuffle: byId('pdf-shuffle').checked };
+    }
+
+    // Pure function: options in, pdfmake document definition out.
+    function buildPdfDefinition(o) {
+        const GREEN = '#0a7a3f', GREY = '#6b7280';
+        const groups = o.lectures.map(l => {
+            let items = safeAllQuestions.filter(q => q.lecture === l && pdfMatch(q, o));
+            if (o.shuffle) items = shuffleArray(items);
+            return { lecture: l, items };
+        }).filter(g => g.items.length);
+        const total = groups.reduce((n, g) => n + g.items.length, 0);
+        const numW = total > 999 ? 34 : total > 99 ? 28 : 22, indent = numW + 2;
+        const key = [], writtenKey = [];
+        const content = [
+            { text: o.title, style: 'title' },
+            { text: `${total} question${total === 1 ? '' : 's'} · ${new Date().toLocaleDateString()}`, style: 'sub' },
+            { text: groups.map(g => `${g.lecture} (${g.items.length})`).join('  ·  '), style: 'sub', margin: [0, 0, 0, 6] }
+        ];
+        let n = 0;
+        groups.forEach(g => {
+            content.push({ stack: [{ text: g.lecture, style: 'lecture' }, { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 507, y2: 0, lineWidth: 0.8, lineColor: '#2dd4bf' }] }], margin: [0, 14, 0, 8], unbreakable: true, keepWithNext: true });
+            g.items.forEach(q => {
+                n++;
+                const written = q.type === 'written', inline = o.answers === 'inline';
+                const stemRuns = [{ text: pdfClean(q.q) }];
+                if (written && !inline) stemRuns.push({ text: '   (written)', fontSize: 8, color: GREY });
+                if (o.showSource) stemRuns.push({ text: '   ' + q.source, fontSize: 8, color: GREY });
+                const stack = [{ columns: [{ width: numW, text: n + '.', bold: true }, { width: '*', text: stemRuns }], columnGap: 2, margin: [0, 0, 0, 3] }];
+                if (!written) {
+                    q.choices.forEach((c, i) => {
+                        const L = 'ABCDEF'[i], right = inline && L === q.ans;
+                        stack.push({ columns: [{ width: 16, text: L + '.', bold: right, color: right ? GREEN : undefined }, { width: '*', text: pdfClean(c), bold: right, color: right ? GREEN : undefined }], columnGap: 2, margin: [indent, 1, 0, 1] });
+                    });
+                    if (inline) {
+                        stack.push({ text: [{ text: 'Answer: ', bold: true }, { text: q.ans, bold: true, color: GREEN }], margin: [indent, 3, 0, 0] });
+                        if (o.explanations && q.reason) stack.push({ text: pdfClean(q.reason), italics: true, color: '#4b5563', fontSize: 9.5, margin: [indent, 2, 0, 0] });
+                    }
+                    if (o.answers === 'key') key.push({ n, l: q.ans, reason: pdfClean(q.reason) });
+                } else {
+                    if (inline) stack.push({ table: { widths: ['*'], body: [[{ stack: [{ text: 'Model answer', bold: true, color: GREEN, fontSize: 9 }, { text: pdfClean(q.modelAnswer), margin: [0, 2, 0, 0] }].concat(o.explanations && q.reason ? [{ text: pdfClean(q.reason), italics: true, color: '#4b5563', fontSize: 9.5, margin: [0, 4, 0, 0] }] : []), fillColor: '#f1f5f4', margin: [6, 4, 6, 4] }]] }, layout: 'noBorders', margin: [indent, 2, 0, 0] });
+                    if (o.answers === 'key') writtenKey.push({ n, model: pdfClean(q.modelAnswer), reason: pdfClean(q.reason) });
+                }
+                content.push({ stack, unbreakable: true, margin: [0, 0, 0, 9] });
+            });
+        });
+        if (o.answers === 'key' && (key.length || writtenKey.length)) {
+            content.push({ text: 'Answer key', style: 'title', pageBreak: 'before', margin: [0, 0, 0, 10] });
+            if (key.length && !o.explanations) {
+                const cols = 6, per = Math.ceil(key.length / cols), columns = [];
+                for (let c = 0; c < cols; c++) { const part = key.slice(c * per, (c + 1) * per); if (part.length) columns.push({ width: '*', stack: part.map(e => ({ text: [{ text: e.n + '. ', color: GREY }, { text: e.l, bold: true }], margin: [0, 1.5, 0, 1.5] })) }); }
+                content.push({ columns, columnGap: 8 });
+            } else key.forEach(e => content.push({ text: [{ text: e.n + '. ' + e.l, bold: true }].concat(e.reason ? [{ text: '   ' + e.reason, color: '#4b5563' }] : []), margin: [0, 0, 0, 4], unbreakable: true }));
+            if (writtenKey.length) {
+                content.push({ text: 'Written questions: model answers', style: 'lecture', margin: [0, 16, 0, 6] });
+                writtenKey.forEach(e => content.push({ stack: [{ text: [{ text: e.n + '. ', bold: true }, { text: e.model }] }].concat(o.explanations && e.reason ? [{ text: e.reason, italics: true, color: '#4b5563', fontSize: 9.5, margin: [0, 2, 0, 0] }] : []), margin: [0, 0, 0, 8], unbreakable: true }));
+            }
+        }
+        return {
+            info: { title: o.title, creator: 'Pediatrics Question Bank' }, pageSize: 'A4', pageMargins: [44, 50, 44, 54],
+            defaultStyle: { font: 'Roboto', fontSize: 10.5, lineHeight: 1.2 },
+            styles: { title: { fontSize: 19, bold: true, margin: [0, 0, 0, 2] }, sub: { fontSize: 9.5, color: GREY, margin: [0, 0, 0, 2] }, lecture: { fontSize: 13, bold: true, color: '#0f766e', margin: [0, 0, 0, 3] } },
+            footer: (page, pages) => ({ text: `${o.title}   ·   Page ${page} of ${pages}`, alignment: 'center', fontSize: 8, color: '#9ca3af', margin: [0, 18, 0, 0] }),
+            content
+        };
+    }
+    function pdfFileName(o) {
+        const slug = t => String(t).replace(/[^A-Za-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+        const part = o.lectures.length === 1 ? slug(o.lectures[0]).slice(0, 30) : `${o.lectures.length}_lectures`;
+        return `${slug(o.title).slice(0, 40) || 'Questions'}_${part}_${new Date().toISOString().slice(0, 10)}.pdf`;
+    }
+    window.downloadPdf = async function() {
+        const btn = byId('pdf-go'); if (btn.disabled) return;
+        const o = pdfOptions(); btn.disabled = true; btn.textContent = 'Preparing…';
+        try {
+            await loadPdfLib();
+            await new Promise(r => setTimeout(r, 40));            // let the button repaint before the heavy work
+            const def = buildPdfDefinition(o), count = def.content.length;
+            await Promise.race([new Promise((res, rej) => { try { window.pdfMake.createPdf(def).download(pdfFileName(o), res); } catch (e) { rej(e); } }), new Promise(r => setTimeout(r, 90000))]);
+            toast('PDF downloaded'); closePdfSetup();
+        } catch (e) {
+            console.error(e);
+            toast(/^load:/.test(e.message || '') ? 'Could not load the PDF tool. Check your connection and try again.' : 'Could not create the PDF. Try fewer lectures.');
+        } finally { btn.disabled = false; btn.textContent = 'Download PDF'; }
     };
 
     let touchStartX = 0;
