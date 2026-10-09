@@ -267,6 +267,21 @@ html, body {
 .rate-btn.sel-G { border-color: var(--green); background: var(--green-dim); color: var(--green); }
 .rate-btn.sel-P { border-color: var(--yellow); background: var(--yellow-dim); color: var(--yellow); }
 .rate-btn.sel-M { border-color: var(--red); background: var(--red-dim); color: var(--red); }
+.ai-box { margin: 4px 22px 18px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg3); padding: 12px 14px; }
+.ai-head { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 10px; }
+.ai-tag { font-family: var(--mono); font-size: 10px; font-weight: 400; color: var(--teal); background: var(--teal-dim); padding: 1px 7px; border-radius: 4px; }
+.ai-btns { display: flex; gap: 8px; flex-wrap: wrap; }
+.ai-btn { flex: 1; min-width: 150px; padding: 9px 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg2); color: var(--text); font-family: var(--sans); font-size: 13px; cursor: pointer; }
+.ai-btn:hover:not(:disabled) { border-color: var(--teal); color: var(--teal); }
+.ai-btn.on { border-color: var(--teal); background: var(--teal-dim); color: var(--teal); }
+.ai-btn:disabled { opacity: .6; cursor: default; }
+.ai-out { margin-top: 12px; font-size: 13.5px; line-height: 1.65; color: var(--text); }
+.ai-out p { margin: 0 0 8px; } .ai-out ul { margin: 0 0 8px; padding-left: 20px; } .ai-out li { margin-bottom: 3px; }
+.ai-out strong { color: var(--teal); font-weight: 600; }
+.ai-note { margin-top: 8px; font-size: 11px; color: var(--text3); }
+.ai-err { color: var(--yellow); }
+.ai-dots::after { content: '…'; animation: aiblink 1s steps(3, end) infinite; }
+@keyframes aiblink { 0% { opacity: .2 } 50% { opacity: 1 } 100% { opacity: .2 } }
 .exam-controls { display: none; align-items: center; gap: 10px; }
 .ex-row { display: flex; align-items: center; gap: 10px; padding: 7px 4px; cursor: pointer; border-bottom: 1px solid var(--border2); }
 .ex-row input { width: 16px; height: 16px; accent-color: var(--teal); flex-shrink: 0; }
@@ -495,6 +510,7 @@ html, body {
         document.getElementById('sb-total-count').textContent = `${safeAllQuestions.length} MCQs`;
         isAdmin = window._fb ? await window._fb.isAdmin() : false;
         document.getElementById('btn-admin').style.display = isAdmin ? '' : 'none';
+        await loadAiConfig();
 
         exam = null; examSaved = null; examHistory = [];
         let data = null;
@@ -627,6 +643,7 @@ html, body {
                 <div class="card-stem">${esc(c.q)}</div>
                 ${c.type === 'written' ? writtenHTML(c) : `<div class="choices">${choicesHTML}</div>`}
                 ${c.type === 'written' ? '' : resultHTML}
+                ${aiBoxHTML(c)}
                 
                 <div style="padding: 0 22px 16px; display: flex; justify-content: flex-end;">
                     <button class="btn-note ${noteClass}" onclick="toggleNoteEditor()">📝 ${savedNote ? 'Edit Note' : 'Add Note'}</button>
@@ -1035,10 +1052,10 @@ html, body {
     window.admTab = function(t) { adm.tab = t; adm.editing = null; adm.sumEditing = null; renderAdmin(); };
 
     function renderAdmin() {
-        const tabs = [['questions', 'Questions'], ['lectures', 'Lectures'], ['import', 'Bulk import'], ['summaries', 'Summaries']];
+        const tabs = [['questions', 'Questions'], ['lectures', 'Lectures'], ['import', 'Bulk import'], ['summaries', 'Summaries'], ['ai', 'AI help']];
         byId('admin-body').innerHTML =
             `<div class="adm-tabs">${tabs.map(([k, l]) => `<button class="adm-tab ${adm.tab === k ? 'active' : ''}" onclick="admTab('${k}')">${l}</button>`).join('')}</div><div id="adm-content"></div>`;
-        if (adm.tab === 'questions') admQuestions(); else if (adm.tab === 'lectures') admLectures(); else if (adm.tab === 'import') admImport(); else admSummaries();
+        if (adm.tab === 'questions') admQuestions(); else if (adm.tab === 'lectures') admLectures(); else if (adm.tab === 'import') admImport(); else if (adm.tab === 'ai') admAI(); else admSummaries();
     }
     function adminErrorText(e) {
         if (e && (e.code === 'permission-denied' || /permission/i.test(e.message || ''))) return 'Permission denied: this account is not set up as an admin in Firebase (see the setup steps), or the security rules are not published yet.';
@@ -1801,6 +1818,145 @@ html, body {
         } finally { btn.disabled = false; btn.textContent = 'Download PDF'; }
     };
 
+    // ═══════════════ AI HELP (Gemini through your own Cloudflare Worker) ═══════════════
+    // Two buttons under an answered question: "Explain the answer" and "Key teaching points".
+    // Shown to admins only until "Let ALL students use AI help" is switched on in Admin → AI help.
+    // The Worker re-checks this on the server, so hiding the buttons is not the only protection.
+    const aiDefaults = () => ({ endpoint: '', model: '', provider: 'gemini', groqModel: '', enabledForAll: false });
+    let aiConfig = aiDefaults();
+    const aiCache = {}, aiProv = {}, aiView = {}, aiErr = {}, aiBusy = new Set();
+    const provLabel = p => p === 'groq' ? 'Groq' : p === 'gemini' ? 'Gemini' : '';
+    async function loadAiConfig() {
+        aiConfig = aiDefaults();
+        try {
+            const c = (window._fb && window._fb.getAiConfig) ? await window._fb.getAiConfig() : null;
+            if (c) aiConfig = { endpoint: String(c.endpoint || '').trim(), model: String(c.model || '').trim(), groqModel: String(c.groqModel || '').trim(), provider: c.provider === 'groq' ? 'groq' : 'gemini', enabledForAll: c.enabledForAll === true };
+        } catch (e) {}
+    }
+    function aiAvailable() { return !!aiConfig.endpoint && (isAdmin || aiConfig.enabledForAll) && !exam; }
+    function aiShowable(c) { return c.type === 'written' ? (!!mcqAnswers[c.id] || writtenShown.has(c.id)) : !!mcqAnswers[c.id]; }
+    function aiFormat(text) {
+        const out = []; let list = null;
+        const inline = t => esc(t).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+        String(text || '').split('\n').forEach(raw => {
+            const line = raw.trim(), m = line.match(/^[-*•]\s+(.*)$/);
+            if (m) { if (!list) { list = []; out.push(list); } list.push(inline(m[1])); }
+            else { list = null; if (line) out.push(inline(line)); }
+        });
+        return out.map(x => Array.isArray(x) ? `<ul>${x.map(i => `<li>${i}</li>`).join('')}</ul>` : `<p>${x}</p>`).join('');
+    }
+    function aiOutHTML(c) {
+        const mode = aiView[c.id]; if (!mode) return '';
+        const key = c.id + '|' + mode;
+        if (aiBusy.has(key)) return '<span class="ai-dots">Thinking</span>';
+        if (aiErr[key]) return `<span class="ai-err">${esc(aiErr[key])}</span>`;
+        if (aiCache[key]) return aiFormat(aiCache[key]) + '<div class="ai-note">AI-generated' + (aiProv[key] ? ' by ' + aiProv[key] : '') + '. Check important details against your lecture notes.</div>';
+        return '';
+    }
+    function aiBoxHTML(c) {
+        if (!aiAvailable() || !aiShowable(c)) return '';
+        const busy = k => aiBusy.has(c.id + '|' + k), on = k => aiView[c.id] === k ? 'on' : '';
+        return `<div class="ai-box" id="ai-box"><div class="ai-head">🤖 AI help <span class="ai-tag">${isAdmin && !aiConfig.enabledForAll ? 'admin preview' : 'beta'}</span></div>
+            <div class="ai-btns"><button class="ai-btn ${on('explain')}" ${busy('explain') ? 'disabled' : ''} onclick="askAI('${c.id}','explain')">Explain the answer</button>
+            <button class="ai-btn ${on('points')}" ${busy('points') ? 'disabled' : ''} onclick="askAI('${c.id}','points')">Key teaching points</button></div>
+            <div class="ai-out" id="ai-out">${aiOutHTML(c)}</div></div>`;
+    }
+    function updateAiBox(c) {
+        const cur = deck[idx]; if (!cur || cur.id !== c.id || !byId('ai-box')) return;
+        const box = byId('ai-box');
+        box.querySelectorAll('.ai-btn').forEach((b, i) => { const k = i ? 'points' : 'explain'; b.classList.toggle('on', aiView[c.id] === k); b.disabled = aiBusy.has(c.id + '|' + k); });
+        byId('ai-out').innerHTML = aiOutHTML(c);
+    }
+    function aiPayload(c, mode) {
+        const p = { mode, type: c.type === 'written' ? 'written' : 'mcq', lecture: c.lecture, q: c.q, reason: c.reason || '' };
+        if (c.type === 'written') p.modelAnswer = c.modelAnswer || '';
+        else { p.choices = c.choices; p.correct = c.ans; const a = mcqAnswers[c.id]; if (a && /^[A-F]$/.test(a) && a !== c.ans) p.chosen = a; }
+        return p;
+    }
+    function aiErrorText(status, code) {
+        if (code === 'ai_disabled') return 'AI help is not switched on for your account yet.';
+        if (code === 'rate_limit') return 'You are asking too quickly. Please wait a minute and try again.';
+        if (code === 'ai_busy') return 'The AI service is busy right now (free quota). Please try again in a little while.';
+        if (code === 'ai_blocked') return 'The AI declined to answer this one.';
+        if (status === 401) return 'Please sign out and sign in again, then retry.';
+        if (status === 0) return 'Could not reach the AI service. Check your connection and try again.';
+        return 'The AI could not answer this time. Please try again.';
+    }
+    async function aiRequest(payload) {          // returns { text } or throws { status, code }
+        let token; try { token = await window._fb.getIdToken(); } catch (e) { throw { status: 401, code: 'unauthenticated' }; }
+        let res; try { res = await fetch(aiConfig.endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token }, body: JSON.stringify(payload) }); }
+        catch (e) { throw { status: 0, code: 'network' }; }
+        const j = await res.json().catch(() => ({}));
+        if (!res.ok || !j.text) throw { status: res.status, code: j.error || 'error' };
+        return j;
+    }
+    window.askAI = async function(id, mode) {
+        const c = safeAllQuestions.find(q => q.id === id);
+        if (!c || !aiAvailable() || !aiShowable(c) || !['explain', 'points'].includes(mode)) return;
+        const key = id + '|' + mode; aiView[id] = mode;
+        if (aiCache[key] || aiBusy.has(key)) { updateAiBox(c); return; }
+        aiBusy.add(key); delete aiErr[key]; updateAiBox(c);
+        try { const r = await aiRequest(aiPayload(c, mode)); aiCache[key] = r.text; aiProv[key] = provLabel(r.provider); }
+        catch (e) { aiErr[key] = aiErrorText(e.status, e.code); }
+        finally { aiBusy.delete(key); }
+        updateAiBox(c);
+    };
+
+    // ---- Admin → AI help tab ----
+    function aiStatusLine() {
+        if (!aiConfig.endpoint) return '<span class="ai-err">Off: no Worker URL saved yet.</span>';
+        return (aiConfig.enabledForAll ? '<span style="color:var(--green)">On for ALL students.</span>' : '<span style="color:var(--teal)">On for admins only.</span> Students do not see the buttons yet.') +
+            ` Main model: ${provLabel(aiConfig.provider)}; the other provider is used automatically as a backup if the Worker has its key.`;
+    }
+    function admAI() {
+        const c = aiConfig;
+        byId('adm-content').innerHTML = `
+            <div class="adm-help"><strong>AI help</strong> adds two buttons under each answered question: <em>Explain the answer</em> and <em>Key teaching points</em>. It runs through your own Cloudflare Worker, so your API keys never reach the browser. Setup steps are in <code>SETUP_AI.md</code>.</div>
+            <div class="adm-count" style="margin-top:12px" id="ai-status-line">Status: ${aiStatusLine()}</div>
+            <label class="adm-label">Worker URL</label>
+            <input id="ai-endpoint" class="adm-in" placeholder="https://pediatrics-ai.yourname.workers.dev" value="${esc(c.endpoint)}">
+            <label class="adm-label">Main provider (the other one is the automatic backup)</label>
+            <select id="ai-provider" class="adm-sel" style="width:100%"><option value="gemini" ${c.provider !== 'groq' ? 'selected' : ''}>Gemini</option><option value="groq" ${c.provider === 'groq' ? 'selected' : ''}>Groq</option></select>
+            <div class="adm-two" style="grid-template-columns:1fr 1fr">
+                <div><label class="adm-label">Gemini model (empty = default)</label><input id="ai-model" class="adm-in" placeholder="gemini-2.5-flash-lite" value="${esc(c.model)}"></div>
+                <div><label class="adm-label">Groq model (empty = default)</label><input id="ai-groqmodel" class="adm-in" placeholder="openai/gpt-oss-120b" value="${esc(c.groqModel)}"></div>
+            </div>
+            <label class="adm-check"><input type="checkbox" id="ai-all" ${c.enabledForAll ? 'checked' : ''}> Let ALL students use AI help <span style="color:var(--text3)">(unticked = admins only)</span></label>
+            <div id="adm-err" class="adm-err"></div>
+            <div class="adm-toolbar" style="margin-top:14px"><button class="btn-primary" id="ai-save" style="width:auto" onclick="admAISave()">Save</button><button class="btn-icon" id="ai-test" onclick="admAITest()">Test with a question</button></div>
+            <div id="ai-test-out" class="ai-out"></div>`;
+    }
+    window.admAISave = async function() {
+        const err = m => { byId('adm-err').textContent = m; };
+        const endpoint = byId('ai-endpoint').value.trim().replace(/\/+$/, ''), model = byId('ai-model').value.trim(), groqModel = byId('ai-groqmodel').value.trim();
+        const provider = byId('ai-provider').value === 'groq' ? 'groq' : 'gemini', all = byId('ai-all').checked;
+        if (endpoint && !/^https:\/\/[^\s/]+(\/\S*)?$/.test(endpoint)) return err('The Worker URL must start with https://');
+        if (model && !/^[a-z0-9][a-z0-9.\-]{1,60}$/i.test(model)) return err('The Gemini model name can only contain letters, numbers, dots and dashes (for example gemini-2.5-flash-lite).');
+        if (groqModel && !/^[a-z0-9][a-z0-9._\-\/]{1,80}$/i.test(groqModel)) return err('The Groq model name can only contain letters, numbers and . _ - / (for example openai/gpt-oss-120b).');
+        if (all && !endpoint) return err('Add the Worker URL before switching AI on for all students.');
+        byId('ai-save').disabled = true; err('');
+        try { await window._fb.saveAiConfig({ endpoint, model, groqModel, provider, enabledForAll: all }); } catch (e) { byId('ai-save').disabled = false; return err(adminErrorText(e)); }
+        aiConfig = { endpoint, model, groqModel, provider, enabledForAll: all };
+        toast(all ? 'AI help is now ON for all students' : 'Saved. AI help is admins-only'); renderAdmin(); if (!exam) renderCard();
+    };
+    window.admAITest = async function() {
+        const out = byId('ai-test-out'), c = safeAllQuestions.find(q => q.type !== 'written');
+        const url = byId('ai-endpoint').value.trim().replace(/\/+$/, '');
+        if (!url) { out.innerHTML = '<span class="ai-err">Enter the Worker URL first.</span>'; return; }
+        if (!c) { out.innerHTML = '<span class="ai-err">There is no multiple-choice question to test with.</span>'; return; }
+        const keep = aiConfig.endpoint; aiConfig.endpoint = url;      // test the URL as typed, even before saving
+        byId('ai-test').disabled = true; out.innerHTML = '<span class="ai-dots">Asking the Worker</span>';
+        try {
+            const r = await aiRequest(aiPayload(c, 'explain'));
+            const who = provLabel(r.provider) ? `answered by ${provLabel(r.provider)}${r.model ? ' (' + esc(r.model) + ')' : ''}` : 'answered';
+            const fb = r.fallbackFrom ? `<div class="ai-err" style="margin-bottom:6px">The main provider failed (${esc(r.fallbackFrom)}), so the backup answered. Check the main provider's key, model and quota.</div>` : '';
+            out.innerHTML = `<div style="color:var(--green);margin-bottom:6px">✓ It works: ${who}${r.cached ? ', served from cache' : ''}. Sample for: <em>${esc(c.q.slice(0, 80))}…</em></div>${fb}${aiFormat(r.text)}`;
+        } catch (e) {
+            const hints = { not_configured: 'The Worker needs FIREBASE_PROJECT_ID and at least one key (GEMINI_API_KEY or GROQ_API_KEY).', ai_config: 'The AI provider rejected the request: check the API key secret and the model name.', ai_busy: 'The provider is rate-limiting your free quota. Try again shortly.', unauthenticated: 'Sign out and in again; also check FIREBASE_PROJECT_ID in the Worker.', ai_disabled: 'Your account is not recognised as admin by the Worker: check the admins document and the Firestore rules.', auth_unavailable: 'The Worker could not reach Firestore.', origin_not_allowed: 'Add this site address to ALLOWED_ORIGINS in the Worker.' };
+            out.innerHTML = `<span class="ai-err">✗ Failed (${e.status ? 'HTTP ' + e.status + ', ' : ''}${esc(e.code)}). ${hints[e.code] || (e.status === 0 ? 'Could not reach the Worker: check the URL, and that ALLOWED_ORIGINS includes this site.' : '')}</span>`;
+        } finally { aiConfig.endpoint = keep; byId('ai-test').disabled = false; }
+    };
+
     let touchStartX = 0;
     document.getElementById('card-area').addEventListener('touchstart', e => { touchStartX = e.touches[0].clientX; }, { passive: true });
     document.getElementById('card-area').addEventListener('touchend', e => {
@@ -1872,6 +2028,9 @@ html, body {
             return snap.docs.map(d => { const x = d.data(); return { ...x, id: d.id, updatedMs: tsMs(x.updatedAt), updatedAt: undefined }; });
         },
         async saveLecture(id, data) { await setDoc(doc(db, "lectures", id), { ...data, updatedAt: serverTimestamp() }, { merge: true }); },
+        async getAiConfig() { try { const s = await getDoc(doc(db, "config", "ai")); return s.exists() ? s.data() : null; } catch (e) { return null; } },
+        async saveAiConfig(d) { await setDoc(doc(db, "config", "ai"), { ...d, updatedAt: serverTimestamp() }, { merge: true }); },
+        async getIdToken() { if (!auth.currentUser) throw new Error("not signed in"); return auth.currentUser.getIdToken(); },
         async batchWrite(ops) {
             for (let i = 0; i < ops.length; i += 400) {
                 const batch = writeBatch(db);
