@@ -3,6 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0d1117">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Peds QBank">
 <title>Pediatrics Question Bank — MU-MED 40</title>
 
 <script>
@@ -205,6 +211,7 @@ html, body {
 .sync-dot.synced { background: var(--green); }
 .sync-dot.syncing { background: var(--yellow); animation: pulse 1s infinite; }
 .sync-dot.error { background: var(--red); }
+.sync-dot.offline { background: var(--yellow); }
 @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
 
 .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(10px); background: var(--bg3); border: 1px solid var(--border); color: var(--text); padding: 9px 18px; border-radius: 8px; font-size: 13px; opacity: 0; pointer-events: none; transition: all .25s; z-index: 200; white-space: nowrap; }
@@ -282,6 +289,11 @@ html, body {
 .ai-err { color: var(--yellow); }
 .ai-dots::after { content: '…'; animation: aiblink 1s steps(3, end) infinite; }
 @keyframes aiblink { 0% { opacity: .2 } 50% { opacity: 1 } 100% { opacity: .2 } }
+.offline-pill { display: none; position: fixed; left: 50%; transform: translateX(-50%); bottom: 12px; z-index: 150; padding: 6px 14px; border-radius: 999px; background: #2a2410; border: 1px solid var(--yellow); color: var(--yellow); font-size: 12px; pointer-events: none; white-space: nowrap; }
+.off-status { border: 1px solid var(--border); border-radius: 10px; background: var(--bg3); padding: 12px 14px; font-size: 13.5px; line-height: 1.55; margin-bottom: 12px; }
+.off-status.ok { border-color: var(--green); background: var(--green-dim); } .off-status.warn { border-color: var(--yellow); background: var(--yellow-dim); }
+.off-list { font-size: 13px; color: var(--text2); line-height: 1.7; margin: 6px 0 0; padding-left: 18px; }
+.login-offline { display: none; color: var(--yellow); font-size: 13px; text-align: center; margin-bottom: 12px; padding: 0 16px; }
 .exam-controls { display: none; align-items: center; gap: 10px; }
 .ex-row { display: flex; align-items: center; gap: 10px; padding: 7px 4px; cursor: pointer; border-bottom: 1px solid var(--border2); }
 .ex-row input { width: 16px; height: 16px; accent-color: var(--teal); flex-shrink: 0; }
@@ -316,6 +328,7 @@ html, body {
 <body>
 
   <div id="auth-screen" class="auth-container">
+    <div id="login-offline" class="login-offline">📴 You are offline. Sign in once with an internet connection; after that the app also works offline.</div>
     <div class="auth-card" id="login-section">
       <div class="sb-logo" style="text-align:center; margin-bottom:10px;">MU-MED 40</div>
       <h2>Login</h2>
@@ -376,6 +389,7 @@ html, body {
         <button class="btn-icon" id="btn-exam" onclick="showExamSetup()" title="Generate an exam">📝 Exam</button>
         <button class="btn-icon" onclick="showSummaries()" title="Summaries">📄 Summaries</button>
         <button class="btn-icon" onclick="showPdfSetup()" title="Download questions as a PDF">⬇ PDF</button>
+        <button class="btn-icon" id="btn-offline" onclick="showOfflineDialog()" title="Install the app and use it offline">📲 App</button>
         <button class="btn-icon" id="btn-admin" style="display:none" onclick="openAdmin()" title="Admin panel">⚙ Admin</button>
         <button class="btn-icon" onclick="showNotebookPanel()" id="btn-notebook" title="Notes & Wrong Answers">📓 Notebook</button>
         <button class="btn-icon" onclick="showStats()" title="Statistics">◎ Stats</button>
@@ -475,6 +489,16 @@ html, body {
     </div>
   </div>
 
+  <div class="offline-pill" id="offline-pill">📴 Offline: your progress is saved on this device</div>
+
+  <div class="overlay" id="offline-overlay">
+    <div class="panel">
+      <div class="panel-header"><h2>📲 App &amp; offline use</h2><button class="panel-close" onclick="closeOfflineDialog()">×</button></div>
+      <div class="panel-body" id="offline-body"></div>
+      <div class="panel-footer"><button class="btn-primary" style="width:100%;" onclick="closeOfflineDialog()">Close</button></div>
+    </div>
+  </div>
+
   <div class="overlay" id="pdf-overlay">
     <div class="panel wide">
       <div class="panel-header"><h2>⬇ Download as PDF</h2><button class="panel-close" onclick="closePdfSetup()">×</button></div>
@@ -506,20 +530,23 @@ html, body {
 
     window.initAppAfterLogin = async function() {
       try {
-        await loadQuestionBank();
-        document.getElementById('sb-total-count').textContent = `${safeAllQuestions.length} MCQs`;
-        isAdmin = window._fb ? await window._fb.isAdmin() : false;
-        document.getElementById('btn-admin').style.display = isAdmin ? '' : 'none';
-        await loadAiConfig();
-
+        progressUid = (window._fb && window._fb.getUid && window._fb.getUid()) || 'anon';
         exam = null; examSaved = null; examHistory = [];
-        let data = null;
-        if (window._loadFromFirebase) data = await window._loadFromFirebase();
-        
-        if (!data) {
-            const raw = localStorage.getItem(LS_KEY);
-            if (raw) data = JSON.parse(raw);
-        }
+        // start every sign-in from a clean slate so a previous user's progress can never leak into the next one
+        mcqAnswers = {}; wrongBank = []; questionNotes = {}; writtenShown = new Set();
+        filterLecture = null; filterSource = ''; filterType = ''; shuffleMode = true; idx = 0;
+        // Everything that needs the network runs in parallel, each with a timeout, and is skipped when the device is offline.
+        const cloudP = (window._loadFromFirebase && online()) ? netTry(() => window._loadFromFirebase(), null) : Promise.resolve(null);
+        const adminP = (window._fb && online()) ? netTry(() => window._fb.isAdmin(), false) : Promise.resolve(false);
+        const [, admin, , cloud] = await Promise.all([loadQuestionBank(), adminP, loadAiConfig(), cloudP]);
+        isAdmin = !!admin;
+        document.getElementById('sb-total-count').textContent = `${safeAllQuestions.length} MCQs`;
+        updateOfflineUi();
+
+        const local = readLocalProgress();
+        let data = cloud || local, needsPush = false;
+        if (cloud && local && hasPending()) data = mergeProgress(cloud, local);   // work done offline must not be overwritten by older cloud data
+        if (hasPending()) needsPush = true;
         
         if (data) {
             // Keep only progress that belongs to the current question bank (ignores ids/filters from the previous bank)
@@ -549,6 +576,7 @@ html, body {
             shuffleBtn.textContent = shuffleMode ? '⇌ Shuffle ON' : '⇌ Shuffle OFF';
         }
 
+        if (needsPush) scheduleSave();
         updateExamButton();
         buildSourceButtons();
         buildTypeButtons();
@@ -926,16 +954,18 @@ html, body {
             const dataToSave = { mcqAnswers, wrongBank, questionNotes, filterLecture, filterSource, filterType, shuffleMode, idx,
                 examSaved: examSaved ? { ids: examSaved.ids, a: packAnswers(examSaved.ids, examSaved.answers), t: examSaved.t || 0, s: examSaved.s || '', l: examSaved.l || [] } : null,
                 examHistory };
-            try { localStorage.setItem(LS_KEY, JSON.stringify(dataToSave)); } catch(e) {}
+            try { localStorage.setItem(lsKey(), JSON.stringify(dataToSave)); } catch(e) {}
+            if (!online()) { setPending(true); setSyncDot('offline'); return; }       // saved on this device; synced automatically when back online
             if (window._saveToFirebase) {
-                const fbSuccess = await window._saveToFirebase(dataToSave);
-                if (!fbSuccess) { setSyncDot('error'); return; }
+                const fbSuccess = await withTimeout(Promise.resolve().then(() => window._saveToFirebase(dataToSave)), 20000).catch(() => false);
+                if (!fbSuccess) { setPending(true); setSyncDot('error'); return; }
             }
+            setPending(false);
             setSyncDot('synced'); setTimeout(() => { if(document.getElementById('sync-dot').className.includes('synced')) setSyncDot(''); }, 3000);
         }, 1000);
     }
     
-    function setSyncDot(s) { document.getElementById('sync-dot').className = 'sync-dot ' + s; if(s === 'error') document.getElementById('sync-dot').title = "Cloud Save Blocked (Saved Locally)"; }
+    function setSyncDot(s) { document.getElementById('sync-dot').className = 'sync-dot ' + s; if(s === 'error') document.getElementById('sync-dot').title = "Cloud Save Blocked (Saved Locally)"; if(s === 'offline') document.getElementById('sync-dot').title = "Offline: saved on this device, will sync when you are back online"; }
     function toast(msg) { const e = document.getElementById('toast'); e.textContent = msg; e.classList.add('show'); setTimeout(() => e.classList.remove('show'), 2500); }
     function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
@@ -1005,13 +1035,16 @@ html, body {
             const raw = JSON.parse(localStorage.getItem(QCACHE_KEY) || 'null');
             if (raw && raw.items && raw.lastSync >= SEED) cache = { lastSync: raw.lastSync, items: raw.items, lecSync: raw.lecSync >= SEED ? raw.lecSync : SEED, lecs: raw.lecs || {} };
         } catch (e) {}
-        if (window._fb) {
+        if (window._fb && online()) {
+            const qP = withTimeout(Promise.resolve().then(() => window._fb.fetchQuestionsSince(cache.lastSync)));
+            const lP = withTimeout(Promise.resolve().then(() => window._fb.fetchLecturesSince(cache.lecSync)));
+            qP.catch(() => {}); lP.catch(() => {});
             try {
-                const fresh = await window._fb.fetchQuestionsSince(cache.lastSync);
+                const fresh = await qP;
                 fresh.forEach(x => { cache.items[x.id] = x; if (x.updatedMs > cache.lastSync) cache.lastSync = x.updatedMs; });
             } catch (e) { console.warn('Question updates unavailable, using bundled/cached questions:', e.message); }
             try {
-                const freshL = await window._fb.fetchLecturesSince(cache.lecSync);
+                const freshL = await lP;
                 freshL.forEach(x => { cache.lecs[x.id] = x; if (x.updatedMs > cache.lecSync) cache.lecSync = x.updatedMs; });
             } catch (e) { console.warn('Lecture updates unavailable, using bundled/cached lectures:', e.message); }
             try { localStorage.setItem(QCACHE_KEY, JSON.stringify(cache)); } catch (e) {}
@@ -1328,771 +1361,4 @@ html, body {
         });
         return { items, errors };
     }
-    const normStem = s => String(s || '').toLowerCase().replace(/\s+/g, ' ').trim();
-    function parseBulk(text, defaultSource) {
-        let data; try { data = JSON.parse(text); } catch (e) { return { fatal: 'Not valid JSON: ' + e.message }; }
-        if (data && !Array.isArray(data) && Array.isArray(data.questions)) data = data.questions;
-        if (!Array.isArray(data)) return { fatal: 'Expected a JSON array of questions.' };
-        const flat = [];
-        data.forEach(it => {
-            if (it && Array.isArray(it.questions)) it.questions.forEach(x => flat.push({ ...x, lecture: x.lecture || it.id || it.title }));
-            else flat.push(it);
-        });
-        return validateBulk(flat, defaultSource);
-    }
-    function validateBulk(flat, defaultSource) {
-        const resolveLecture = v => { const s = String(v || '').trim().toLowerCase(); return s ? LECT.find(l => l.id.toLowerCase() === s || l.title.toLowerCase() === s) : null; };
-        const existing = new Set(allQuestionsFull.map(q => normStem(q.q))), seen = new Set();
-        const valid = [], errors = []; let dups = 0;
-        flat.forEach((x, i) => {
-            const tag = `#${i + 1}`;
-            if (!x || typeof x !== 'object') { errors.push(`${tag}: not an object`); return; }
-            const lec = resolveLecture(x.lecture); if (!lec) { errors.push(`${tag}: ${x.lecture ? `unknown lecture "${x.lecture}"` : 'no lecture chosen'}`); return; }
-            const qText = String(x.q || '').trim();
-            if (!qText) { errors.push(`${tag}: missing question text`); return; }
-            const source = String(x.source || x.label || defaultSource || '').trim(); if (!source) { errors.push(`${tag}: no source (set one in the question or the default source box)`); return; }
-            const modelRaw = x.modelAnswer !== undefined ? x.modelAnswer : (x.model !== undefined ? x.model : x.answer);
-            const isWritten = String(x.type || '').toLowerCase() === 'written' || (!x.opts && !x.choices && typeof modelRaw === 'string' && modelRaw.trim().length > 1);
-            const dd = String(x.diff || '').trim().charAt(0).toUpperCase(), diff = 'EMH'.includes(dd) && dd ? dd : '';
-            const key = normStem(qText); if (existing.has(key) || seen.has(key)) { dups++; return; }
-            if (isWritten) {
-                const model = String(modelRaw || '').trim();
-                if (!model) { errors.push(`${tag}: written question has no model answer`); return; }
-                seen.add(key);
-                valid.push({ lectureId: lec.id, lecture: lec.title, source, type: 'written', q: qText, modelAnswer: model, choices: [], ans: 'G', reason: String(x.reason || x.notes || '').trim(), ref: String(x.ref || '').trim(), diff, hidden: false });
-                return;
-            }
-            const choices = (x.opts || x.choices);
-            if (!Array.isArray(choices) || choices.length < 2 || choices.length > 6 || choices.some(c => !String(c).trim())) { errors.push(`${tag}: "opts" must be 2–6 non-empty choices`); return; }
-            const ch = choices.map(c => String(c).trim());
-            if (new Set(ch.map(c => c.toLowerCase())).size !== ch.length) { errors.push(`${tag}: duplicate answer choices`); return; }
-            let raw = x.correct !== undefined ? x.correct : x.ans, ai = -1;
-            if (typeof raw === 'number') ai = raw; else if (/^[A-Fa-f]$/.test(String(raw).trim())) ai = 'ABCDEF'.indexOf(String(raw).trim().toUpperCase()); else if (/^\d$/.test(String(raw).trim())) ai = parseInt(raw, 10);
-            if (!(ai >= 0 && ai < ch.length)) { errors.push(`${tag}: "correct" is missing or out of range`); return; }
-            seen.add(key);
-            valid.push({ lectureId: lec.id, lecture: lec.title, source, type: 'mcq', q: qText, modelAnswer: '', choices: ch, ans: 'ABCDEF'[ai], reason: String(x.reason || '').trim(), ref: String(x.ref || '').trim(), diff, hidden: false });
-        });
-        return { valid, errors, dups, total: flat.length };
-    }
-    window.admImportCheck = function() {
-        const mode = adm.impMode || 'text', defSrc = byId('imp-source').value.trim(), rep = byId('imp-report');
-        adm.impSource = defSrc; if (mode === 'text') adm.impLecture = byId('imp-lecture').value;
-        let r;
-        if (mode === 'json') r = parseBulk(byId('imp-text').value, defSrc);
-        else {
-            const q = parseQuickText(byId('imp-text').value, byId('imp-lecture').value);
-            if (!q.items.length && !q.errors.length) r = { fatal: 'No questions found. Each question should start with a number (for example "1. Question text?") followed by options A. B. C. D. and an answer.' };
-            else { r = validateBulk(q.items, defSrc); r.errors = q.errors.concat(r.errors); r.total += q.errors.length; }
-        }
-        if (r.fatal) { adm.pending = []; byId('imp-go').disabled = true; rep.innerHTML = `<div class="adm-err">${esc(r.fatal)}</div>`; return; }
-        adm.pending = r.valid; byId('imp-go').disabled = !r.valid.length;
-        const perLec = {}; r.valid.forEach(q => perLec[q.lecture] = (perLec[q.lecture] || 0) + 1);
-        const v0 = r.valid[0];
-        const sample = v0 ? `<div class="adm-row" style="display:block;margin-top:10px"><div class="adm-count" style="margin:0 0 4px">First question as it will be imported${v0.type === 'written' ? ' (written)' : ''}</div><div class="wq-stem">${esc(v0.q)}</div>${v0.type === 'written' ? `<div style="font-size:12.5px;margin-top:6px;color:var(--green);white-space:pre-wrap">${esc(v0.modelAnswer.length > 300 ? v0.modelAnswer.slice(0, 300) + '…' : v0.modelAnswer)}</div>` : v0.choices.map((c, i) => `<div style="font-size:12.5px;margin-top:3px;color:${'ABCDEF'[i] === v0.ans ? 'var(--green)' : 'var(--text2)'}">${'ABCDEF'[i]}. ${esc(c)}${'ABCDEF'[i] === v0.ans ? ' ✓' : ''}</div>`).join('')}</div>` : '';
-        rep.innerHTML = `<div class="adm-ok">${r.valid.length} ready to import (of ${r.total})${r.dups ? ` · ${r.dups} skipped as duplicates` : ''}${r.errors.length ? ` · ${r.errors.length} with problems` : ''}</div>` +
-            (r.valid.length ? `<div class="adm-count">${Object.entries(perLec).map(([l, n]) => `${esc(l)}: ${n}`).join(' · ')}</div>` : '') + sample +
-            (r.errors.length ? `<div class="adm-err">${r.errors.slice(0, 15).map(esc).join('\n')}${r.errors.length > 15 ? `\n…and ${r.errors.length - 15} more` : ''}</div>` : '');
-    };
-    window.admImportGo = async function() {
-        const list = adm.pending.slice(); if (!list.length) return;
-        const next = {}; const items = list.map((q, i) => {
-            next[q.lectureId] = (next[q.lectureId] || nextOrder(q.lectureId) - 1) + 1;
-            return { id: newId(q.lectureId, i), data: { ...q, order: next[q.lectureId] } };
-        });
-        byId('imp-go').disabled = true; byId('imp-report').innerHTML = '<div class="adm-count">Importing…</div>';
-        try { await cloudSaveQuestions(items); } catch (e) { byId('imp-go').disabled = false; byId('imp-report').innerHTML = `<div class="adm-err">${esc(adminErrorText(e))}</div>`; return; }
-        items.forEach(it => bankMap.set(it.id, docToQuestion({ ...it.data, id: it.id })));
-        rebuildBank(); refreshAfterBankChange(); adm.pending = [];
-        byId('imp-report').innerHTML = `<div class="adm-ok">Imported ${items.length} question${items.length === 1 ? '' : 's'}.</div>`;
-        toast(`Imported ${items.length} questions`);
-    };
-
-    // ═══════════════ SUMMARIES (Google Drive links) ═══════════════
-    const isDriveUrl = u => /^https:\/\/(drive|docs)\.google\.com\//i.test(String(u || '').trim());
-    function driveLinks(url) {
-        const out = { open: url, preview: null }; let m;
-        if ((m = url.match(/drive\.google\.com\/file\/d\/([\w-]+)/))) out.preview = `https://drive.google.com/file/d/${m[1]}/preview`;
-        else if ((m = url.match(/drive\.google\.com\/(?:open|uc)\?[^#]*id=([\w-]+)/))) out.preview = `https://drive.google.com/file/d/${m[1]}/preview`;
-        else if ((m = url.match(/drive\.google\.com\/drive\/(?:u\/\d+\/)?folders\/([\w-]+)/))) out.preview = `https://drive.google.com/embeddedfolderview?id=${m[1]}#list`;
-        else if ((m = url.match(/docs\.google\.com\/(document|presentation|spreadsheets)\/d\/([\w-]+)/))) out.preview = `https://docs.google.com/${m[1]}/d/${m[2]}/preview`;
-        return out;
-    }
-    const summaryLecture = s => (lectureById(s.lectureId) || {}).title || 'General';
-    let summariesCache = [];
-
-    window.showSummaries = async function() {
-        byId('summaries-overlay').classList.add('visible');
-        byId('summaries-body').innerHTML = '<div class="wq-empty">Loading…</div>';
-        try { if (!window._fb) throw new Error('offline'); summariesCache = (await window._fb.listSummaries()).filter(s => !s.hidden && isDriveUrl(s.url)); }
-        catch (e) { byId('summaries-body').innerHTML = '<div class="wq-empty">Could not load summaries right now. Check your connection and try again.</div>'; return; }
-        byId('sum-search').value = ''; renderSummaries();
-    };
-    window.closeSummaries = function() { byId('summaries-overlay').classList.remove('visible'); };
-    window.renderSummaries = function() {
-        const t = (byId('sum-search').value || '').trim().toLowerCase();
-        const items = summariesCache.filter(s => !t || (s.title + ' ' + summaryLecture(s) + ' ' + (s.note || '')).toLowerCase().includes(t));
-        if (!items.length) { byId('summaries-body').innerHTML = `<div class="wq-empty">${summariesCache.length ? 'No summaries match your search.' : 'No summaries have been added yet.'}</div>`; return; }
-        const groups = {}; items.forEach(s => (groups[summaryLecture(s)] = groups[summaryLecture(s)] || []).push(s));
-        const names = Object.keys(groups).sort((a, b) => a === 'General' ? -1 : b === 'General' ? 1 : a.localeCompare(b));
-        byId('summaries-body').innerHTML = names.map(n => `<div class="section-title">${esc(n)}</div>` +
-            groups[n].sort((a, b) => a.title.localeCompare(b.title)).map(s => `
-            <div class="sum-item">
-                <div class="sum-main"><div class="sum-title">📄 ${esc(s.title)}</div>${s.note ? `<div class="sum-note">${esc(s.note)}</div>` : ''}</div>
-                <div class="adm-row-actions">${driveLinks(s.url).preview ? `<button class="btn-icon" onclick="openPreview('${s.id}')">Preview</button>` : ''}<a class="btn-icon sum-link" href="${esc(s.url)}" target="_blank" rel="noopener noreferrer">Open ↗</a></div>
-            </div>`).join('')).join('');
-    };
-    window.openPreview = function(id) {
-        const s = summariesCache.find(x => x.id === id); if (!s) return;
-        const l = driveLinks(s.url); if (!l.preview) { window.open(s.url, '_blank', 'noopener'); return; }
-        byId('preview-title').textContent = s.title; byId('preview-open').href = s.url; byId('preview-frame').src = l.preview;
-        byId('preview-overlay').classList.add('visible');
-    };
-    window.closePreview = function() { byId('preview-overlay').classList.remove('visible'); byId('preview-frame').src = 'about:blank'; };
-
-    // ---- Summaries tab in the admin panel ----
-    async function admSummaries() {
-        if (adm.sumEditing) return admSummaryForm();
-        byId('adm-content').innerHTML = '<div class="wq-empty">Loading…</div>';
-        try { if (!window._fb) throw new Error('Cloud connection is not available.'); adm.sums = await window._fb.listSummaries(); }
-        catch (e) { byId('adm-content').innerHTML = `<div class="adm-err">${esc(adminErrorText(e))}</div>`; return; }
-        const rows = adm.sums.slice().sort((a, b) => summaryLecture(a).localeCompare(summaryLecture(b)) || a.title.localeCompare(b.title));
-        byId('adm-content').innerHTML = `
-            <div class="adm-toolbar"><button class="btn-primary" style="width:auto" onclick="admSumEdit(null)">+ Add summary</button><span class="adm-count" style="margin:0">${rows.length} summar${rows.length === 1 ? 'y' : 'ies'}</span></div>
-            ${rows.map(s => `<div class="adm-row ${s.hidden ? 'is-hidden' : ''}">
-                <div class="adm-row-main"><div class="wq-meta"><span class="wq-lec">${esc(summaryLecture(s))}</span>${s.hidden ? '<span class="adm-hidden-badge">hidden</span>' : ''}</div><div class="wq-stem">📄 ${esc(s.title)}</div></div>
-                <div class="adm-row-actions"><button class="btn-icon" onclick="admSumEdit('${s.id}')">Edit</button><button class="btn-icon" style="color:var(--red)" onclick="admSumDelete('${s.id}')">Delete</button></div>
-            </div>`).join('') || '<div class="wq-empty">No summaries yet. Add the first one.</div>'}`;
-    }
-    window.admSumEdit = function(id) { adm.sumEditing = { id: id }; renderAdmin(); };
-    window.admSumCancel = function() { adm.sumEditing = null; renderAdmin(); };
-    function admSummaryForm() {
-        const ed = adm.sumEditing, s = ed.id ? adm.sums.find(x => x.id === ed.id) : null;
-        const d = s || { lectureId: '', title: '', url: '', note: '', hidden: false };
-        byId('adm-content').innerHTML = `
-            <div class="adm-toolbar"><button class="btn-icon" onclick="admSumCancel()">← Back to list</button><strong style="font-size:14px">${s ? 'Edit summary' : 'New summary'}</strong></div>
-            <label class="adm-label">Lecture</label>
-            <select id="s-lecture" class="adm-sel" style="width:100%"><option value="">General (not tied to a lecture)</option>${LECT.map(l => `<option value="${esc(l.id)}" ${d.lectureId === l.id ? 'selected' : ''}>${esc(l.title)}</option>`).join('')}</select>
-            <label class="adm-label">Title</label><input id="s-title" class="adm-in" value="${esc(d.title)}">
-            <label class="adm-label">Google Drive link</label><input id="s-url" class="adm-in" placeholder="https://drive.google.com/file/d/…/view" value="${esc(d.url)}">
-            <div class="adm-help" style="margin-top:6px">In Drive: right-click the file → Share → General access → <strong>Anyone with the link</strong> (Viewer), then paste the link here. Students can't open it otherwise.</div>
-            <label class="adm-label">Note (optional)</label><input id="s-note" class="adm-in" value="${esc(d.note || '')}">
-            <label class="adm-check"><input type="checkbox" id="s-hidden" ${d.hidden ? 'checked' : ''}> Hide from students</label>
-            <div id="adm-err" class="adm-err"></div>
-            <div class="adm-toolbar" style="margin-top:14px"><button class="btn-primary" id="s-save" style="width:auto" onclick="admSumSave()">Save</button><button class="btn-icon" onclick="admSumCancel()">Cancel</button></div>`;
-    }
-    window.admSumSave = async function() {
-        const err = m => { byId('adm-err').textContent = m; };
-        const title = byId('s-title').value.trim(), url = byId('s-url').value.trim();
-        if (!title) return err('Enter a title.');
-        if (!isDriveUrl(url)) return err('The link must be a Google Drive or Google Docs link (starting with https://drive.google.com/ or https://docs.google.com/).');
-        const existing = adm.sumEditing.id ? adm.sums.find(x => x.id === adm.sumEditing.id) : null;
-        const id = existing ? existing.id : 's' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
-        const data = { lectureId: byId('s-lecture').value, title, url, note: byId('s-note').value.trim(), hidden: byId('s-hidden').checked, createdMs: existing ? (existing.createdMs || Date.now()) : Date.now() };
-        byId('s-save').disabled = true;
-        try { await window._fb.saveSummary(id, data); } catch (e) { byId('s-save').disabled = false; return err(adminErrorText(e)); }
-        toast(existing ? 'Summary updated' : 'Summary added'); adm.sumEditing = null; renderAdmin();
-    };
-    window.admSumDelete = async function(id) {
-        const s = adm.sums.find(x => x.id === id); if (!s || !confirm(`Delete "${s.title}"? This cannot be undone.`)) return;
-        try { await window._fb.deleteSummary(id); } catch (e) { toast(adminErrorText(e)); return; }
-        toast('Summary deleted'); renderAdmin();
-    };
-
-    // ═══════════════ EXAM GENERATOR ═══════════════
-    // Pick lectures (+ optional source) and a number of questions. Answers are hidden until you finish;
-    // results are then merged into your progress and wrong bank.
-    let exam = null;               // the exam currently on screen: { ids, answers: {id: letter}, finished, t, s, l }
-    let examSaved = null;          // an unfinished exam kept in the user's saved progress (pause / resume)
-    let examHistory = [];          // finished exams (newest first, max 30): { t, ids, a, c, n, u, s, l }
-    // Answers are saved as one string aligned with the ids ("AB-D…", "-" = unanswered): safe for cloud merging.
-    const packAnswers = (ids, ans) => ids.map(id => ans[id] || '-').join('');
-    const unpackAnswers = (ids, str) => { const o = {}; ids.forEach((id, i) => { const ch = (str || '')[i]; if (ch && ch !== '-') o[id] = ch; }); return o; };
-    function updateExamButton() { const b = byId('btn-exam'); if (b) b.textContent = '📝 Exam' + (examSaved ? ' ⏸' : ''); }
-    function enterExamUI(title, meta) {
-        document.querySelector('.filters-bar').style.display = 'none';
-        byId('nav-score').style.display = 'none'; byId('exam-controls').style.display = 'flex';
-        byId('deck-title').textContent = title; byId('deck-meta').textContent = meta;
-        closeExamSetup(); closeExamResult(); renderCard(); updateNav(); updateExamBar(); updateExamButton();
-        if (window.innerWidth < 768) closeSidebar();
-    }
-    function examSavedHtml() {
-        if (!examSaved) return '';
-        const a = examSaved.ids.filter(id => examSaved.answers[id]).length;
-        return `<div class="exam-resume"><div><strong>Exam in progress</strong><div class="sum-note">${examSaved.ids.length} questions · ${a} answered</div></div>
-            <div class="adm-row-actions"><button class="btn-primary" style="width:auto;padding:7px 16px" onclick="resumeExam()">Resume</button><button class="btn-icon" style="color:var(--red)" onclick="discardExam()">Discard</button></div></div>`;
-    }
-    function examHistoryHtml() {
-        if (!examHistory.length) return '';
-        return `<div class="section-title" style="margin-top:20px">Past exams</div>` + examHistory.slice(0, 10).map((h, i) => {
-            const pct = h.n ? Math.round(h.c / h.n * 100) : 0, lec = (h.l || []);
-            const what = lec.length > 2 ? `${lec.length} lectures` : lec.join(', ') || 'Exam';
-            return `<div class="sum-item"><div class="sum-main"><div class="sum-title">${pct}% <span style="color:var(--text3);font-size:12px">(${h.c}/${h.n})</span></div>
-                <div class="sum-note">${esc(new Date(h.t).toLocaleDateString())} · ${esc(what)}${h.s ? ' · ' + esc(h.s) : ''}</div></div>
-                <button class="btn-icon" onclick="reviewHistory(${i})">Review</button></div>`;
-        }).join('') + (examHistory.length > 10 ? `<div class="adm-count">Showing the latest 10 of ${examHistory.length}</div>` : '');
-    }
-    let examSel = new Set();
-    const examQ = id => safeAllQuestions.find(q => q.id === id);
-
-    window.showExamSetup = function() {
-        examSel = new Set(filterLecture ? [filterLecture] : []);
-        byId('exam-body').innerHTML = `
-            ${examSavedHtml()}<div class="adm-help">Choose lectures and how many questions (exams use multiple-choice questions only). Answers are hidden until you finish; your results are then added to your progress and wrong bank.</div>
-            <label class="adm-label">Source</label>
-            <select id="ex-source" class="adm-sel" style="width:100%" onchange="examRecalc()"><option value="">All sources</option>${getSources().map(s => `<option value="${esc(s)}" ${s === filterSource ? 'selected' : ''}>${esc(s)}</option>`).join('')}</select>
-            <div class="adm-toolbar" style="margin-top:14px"><label class="adm-label" style="margin:0;flex:1">Lectures</label><button class="btn-icon" onclick="examSelectAll(true)">Select all</button><button class="btn-icon" onclick="examSelectAll(false)">Clear</button></div>
-            <div id="ex-lectures"></div>
-            <label class="adm-label">Number of questions</label>
-            <div class="adm-toolbar">
-                <input type="number" id="ex-n" class="adm-in" style="width:100px" min="1" value="50" oninput="examRecalc()">
-                ${[10, 25, 50, 100].map(n => `<button class="btn-icon" onclick="examSetN(${n})">${n}</button>`).join('')}<button class="btn-icon" onclick="examSetN('max')">All</button>
-            </div>
-            <label class="adm-check"><input type="checkbox" id="ex-balance" checked> Spread questions evenly across the selected lectures</label>
-            <div id="ex-summary" class="adm-count"></div>${examHistoryHtml()}`;
-        examRecalc(); byId('exam-overlay').classList.add('visible');
-    };
-    window.closeExamSetup = function() { byId('exam-overlay').classList.remove('visible'); };
-    function examPool() { const src = byId('ex-source').value; return safeAllQuestions.filter(c => c.type !== 'written' && examSel.has(c.lecture) && (!src || c.source === src)); }
-    window.examRecalc = function() {
-        const src = byId('ex-source').value, counts = {};
-        safeAllQuestions.forEach(c => { if (c.type !== 'written' && (!src || c.source === src)) counts[c.lecture] = (counts[c.lecture] || 0) + 1; });
-        examSel.forEach(l => { if (!counts[l]) examSel.delete(l); });
-        byId('ex-lectures').innerHTML = Object.keys(counts).sort().map(l =>
-            `<label class="ex-row"><input type="checkbox" data-lec="${esc(l)}" ${examSel.has(l) ? 'checked' : ''} onchange="examToggle(this)"><span class="ex-name">${esc(l)}</span><span class="sb-item-cnt">${counts[l]}</span></label>`).join('') || '<div class="wq-empty">No questions for this source.</div>';
-        const pool = examPool().length, n = parseInt(byId('ex-n').value, 10);
-        byId('ex-summary').textContent = pool ? `${pool} question${pool === 1 ? '' : 's'} available from ${examSel.size} lecture${examSel.size === 1 ? '' : 's'}${n > pool ? ` · the exam will use all ${pool}` : ''}` : 'Select at least one lecture.';
-        byId('exam-start').disabled = !pool;
-    };
-    window.examToggle = function(el) { if (el.checked) examSel.add(el.dataset.lec); else examSel.delete(el.dataset.lec); examRecalc(); };
-    window.examSelectAll = function(on) { const src = byId('ex-source').value; examSel = new Set(on ? safeAllQuestions.filter(c => c.type !== 'written' && (!src || c.source === src)).map(c => c.lecture) : []); examRecalc(); };
-    window.examSetN = function(n) { byId('ex-n').value = n === 'max' ? Math.max(1, examPool().length) : n; examRecalc(); };
-
-    function sampleExam(pool, n, balanced) {
-        if (!balanced) return shuffleArray(pool).slice(0, n);
-        const groups = {}; pool.forEach(q => (groups[q.lecture] = groups[q.lecture] || []).push(q));
-        const lists = shuffleArray(Object.values(groups)).map(g => shuffleArray(g)), out = [];
-        while (out.length < n && lists.some(l => l.length)) lists.forEach(l => { if (out.length < n && l.length) out.push(l.pop()); });
-        return out;
-    }
-    window.startExam = function() {
-        const pool = examPool(); if (!pool.length) return;
-        if (examSaved && !confirm('You have an exam in progress. Start a new one and discard it?')) return;
-        let n = parseInt(byId('ex-n').value, 10); if (!(n >= 1)) n = Math.min(50, pool.length); n = Math.min(n, pool.length);
-        const picked = shuffleArray(sampleExam(pool, n, byId('ex-balance').checked));
-        exam = { ids: picked.map(q => q.id), answers: {}, finished: false, t: Date.now(), s: byId('ex-source').value, l: [...examSel] };
-        examSaved = exam; deck = picked; idx = 0;
-        enterExamUI(`Exam · ${picked.length} question${picked.length === 1 ? '' : 's'}`, `${examSel.size} lecture${examSel.size === 1 ? '' : 's'}`);
-        scheduleSave();
-    };
-    window.resumeExam = function() {
-        if (!examSaved) return;
-        if (exam) exitExam(true);
-        const qs = examSaved.ids.map(examQ).filter(Boolean);
-        if (!qs.length) { toast('Those questions are no longer available.'); examSaved = null; updateExamButton(); scheduleSave(); closeExamSetup(); return; }
-        examSaved.ids = qs.map(q => q.id);
-        exam = examSaved; deck = qs; idx = Math.max(0, qs.findIndex(q => !exam.answers[q.id]));
-        enterExamUI(`Exam · ${qs.length} question${qs.length === 1 ? '' : 's'}`, 'resumed');
-    };
-    window.discardExam = function() {
-        if (!examSaved || !confirm('Discard your exam in progress? Its answers will be lost.')) return;
-        if (exam === examSaved) exitExam(true);
-        examSaved = null; updateExamButton(); scheduleSave(); showExamSetup();
-    };
-    window.reviewHistory = function(i) {
-        const h = examHistory[i]; if (!h) return;
-        if (exam) exitExam(true);
-        const qs = h.ids.map(examQ).filter(Boolean);
-        if (!qs.length) { toast('Those questions are no longer available.'); return; }
-        exam = { ids: h.ids, answers: unpackAnswers(h.ids, h.a), finished: true, t: h.t, s: h.s, l: h.l };
-        deck = qs; idx = 0;
-        enterExamUI(`Exam review · ${new Date(h.t).toLocaleDateString()}`, `${qs.length} questions`);
-        showExamResult();
-    };
-    function updateExamBar() {
-        if (!exam) return;
-        const a = exam.ids.filter(id => exam.answers[id]).length;
-        byId('exam-prog').textContent = exam.finished ? 'Review mode' : `Answered ${a}/${exam.ids.length}`;
-        byId('exam-finish').textContent = exam.finished ? 'View results' : 'Finish exam';
-        byId('exam-exit').textContent = exam.finished ? 'Close' : 'Pause';
-    }
-    window.examPick = function(id, letter) { if (!exam || exam.finished) return; exam.answers[id] = letter; renderCard(); updateExamBar(); scheduleSave(); };
-    function examResult() {
-        const qs = exam.ids.map(examQ).filter(Boolean);
-        const correct = qs.filter(q => exam.answers[q.id] === q.ans).length, unanswered = qs.filter(q => !exam.answers[q.id]).length;
-        return { qs, correct, unanswered, wrong: qs.length - correct - unanswered, pct: qs.length ? Math.round(correct / qs.length * 100) : 0 };
-    }
-    window.finishExam = function() {
-        if (!exam) return;
-        if (exam.finished) return showExamResult();
-        const un = exam.ids.filter(id => !exam.answers[id]).length;
-        if (un && !confirm(`${un} question${un === 1 ? ' is' : 's are'} unanswered. Finish anyway?`)) return;
-        exam.finished = true;
-        examResult().qs.forEach(q => {          // merge into permanent progress
-            const a = exam.answers[q.id]; if (!a) return;
-            mcqAnswers[q.id] = a;
-            if (a !== q.ans && !wrongBank.includes(q.id)) wrongBank.push(q.id);
-        });
-        const r = examResult();
-        examHistory.unshift({ t: Date.now(), ids: exam.ids, a: packAnswers(exam.ids, exam.answers), c: r.correct, n: r.qs.length, u: r.unanswered, s: exam.s || '', l: exam.l || [] });
-        examHistory = examHistory.slice(0, 30); examSaved = null; updateExamButton();
-        recalculateSessionScore(); scheduleSave(); renderCard(); updateExamBar(); showExamResult();
-    };
-    window.showExamResult = function() {
-        if (!exam || !exam.finished) return;
-        const r = examResult(), per = {};
-        r.qs.forEach(q => { const p = per[q.lecture] = per[q.lecture] || { n: 0, c: 0 }; p.n++; if (exam.answers[q.id] === q.ans) p.c++; });
-        byId('exam-result-body').innerHTML = `
-            <div class="stats-grid"><div class="stat-box total"><div class="val">${r.pct}%</div><div class="lbl">${r.correct} of ${r.qs.length} correct</div></div>
-            <div class="stat-box correct"><div class="val">${r.correct}</div><div class="lbl">Correct</div></div>
-            <div class="stat-box wrong"><div class="val">${r.wrong}</div><div class="lbl">Wrong</div></div>
-            <div class="stat-box"><div class="val">${r.unanswered}</div><div class="lbl">Unanswered</div></div></div>
-            <div class="section-title">By lecture</div>` +
-            Object.keys(per).sort().map(l => `<div class="lec-bar-row"><span class="lec-bar-name">${esc(l)}</span><div class="lec-bar-track"><div class="lec-bar-fill" style="width:${Math.round(per[l].c / per[l].n * 100)}%"></div></div><span class="lec-bar-pct">${per[l].c}/${per[l].n}</span></div>`).join('') +
-            `<div style="margin-top:16px"><button class="btn-icon" onclick="closeExamResult(); showExamSetup()">+ New exam</button></div>`;
-        byId('exam-review-wrong').style.display = (r.wrong + r.unanswered) ? '' : 'none';
-        byId('exam-result-overlay').classList.add('visible');
-    };
-    window.closeExamResult = function() { byId('exam-result-overlay').classList.remove('visible'); };
-    window.reviewExam = function(onlyWrong) {
-        if (!exam) return;
-        let qs = exam.ids.map(examQ).filter(Boolean);
-        if (onlyWrong) qs = qs.filter(q => exam.answers[q.id] !== q.ans);
-        if (!qs.length) return;
-        deck = qs; idx = 0; closeExamResult(); renderCard(); updateNav(); updateExamBar();
-        byId('deck-meta').textContent = `${qs.length} ${onlyWrong ? 'to review' : 'reviewed'}`;
-    };
-    window.exitExam = function(silent) {
-        if (!exam) return;
-        const paused = !exam.finished && exam === examSaved;      // an unfinished exam stays saved: resume it from the Exam button
-        exam = null;
-        document.querySelector('.filters-bar').style.display = '';
-        byId('nav-score').style.display = ''; byId('exam-controls').style.display = 'none';
-        closeExamResult(); updateExamButton();
-        if (!silent) { loadDeck(); if (paused) toast('Exam paused. Resume it from the Exam button.'); }
-    };
-
-    // ═══════════════ PDF DOWNLOAD ═══════════════
-    // Builds the PDF on the user's device with pdfmake (loaded from a CDN only when needed, then cached by the browser).
-    const PDFMAKE_URL = 'https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/pdfmake.min.js';
-    const PDFVFS_URL = 'https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/vfs_fonts.js';
-    let pdfLibPromise = null, pdfSel = new Set();
-    function loadPdfLib() {
-        if (window.pdfMake && window.pdfMake.vfs) return Promise.resolve();
-        if (pdfLibPromise) return pdfLibPromise;
-        const load = src => new Promise((res, rej) => {
-            const el = document.createElement('script'); el.src = src; el.onload = res; el.onerror = () => rej(new Error('load: ' + src));
-            document.head.appendChild(el);
-        });
-        pdfLibPromise = load(PDFMAKE_URL).then(() => load(PDFVFS_URL)).catch(e => { pdfLibPromise = null; throw e; });
-        return pdfLibPromise;
-    }
-    const pdfClean = t => String(t == null ? '' : t).replace(/[\u200B-\u200D\uFEFF]/g, '').replace(/\u00A0/g, ' ').replace(/[ \t]+\n/g, '\n').trim();
-
-    window.showPdfSetup = function() {
-        pdfSel = new Set(filterLecture ? [filterLecture] : []);
-        const hasWritten = safeAllQuestions.some(q => q.type === 'written');
-        byId('pdf-body').innerHTML = `
-            <div class="adm-help">Make a PDF of the questions from the lectures you choose. It is created on your device.</div>
-            <label class="adm-label">Title</label>
-            <input id="pdf-title" class="adm-in" value="Pediatrics Question Bank" maxlength="90">
-            <div class="adm-toolbar" style="margin-top:14px"><label class="adm-label" style="margin:0;flex:1">Lectures</label><button class="btn-icon" onclick="pdfSelectAll(true)">Select all</button><button class="btn-icon" onclick="pdfSelectAll(false)">Clear</button></div>
-            <div id="pdf-lectures"></div>
-            <div class="adm-two" style="grid-template-columns:1fr ${hasWritten ? '1fr' : ''}">
-                <div><label class="adm-label">Source</label><select id="pdf-source" class="adm-sel" style="width:100%" onchange="pdfRecalc()"><option value="">All sources</option>${getSources().map(x => `<option value="${esc(x)}" ${x === filterSource ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select></div>
-                ${hasWritten ? `<div><label class="adm-label">Type</label><select id="pdf-type" class="adm-sel" style="width:100%" onchange="pdfRecalc()"><option value="">All types</option><option value="mcq">Multiple choice</option><option value="written">Written</option></select></div>` : ''}
-            </div>
-            <label class="adm-label">Answers</label>
-            <label class="adm-check" style="margin-top:4px"><input type="radio" name="pdf-ans" value="key" checked onchange="pdfRecalc()"> Questions first, answer key at the end</label>
-            <label class="adm-check" style="margin-top:6px"><input type="radio" name="pdf-ans" value="inline" onchange="pdfRecalc()"> Answer shown under each question</label>
-            <label class="adm-check" style="margin-top:6px"><input type="radio" name="pdf-ans" value="none" onchange="pdfRecalc()"> Questions only (no answers)</label>
-            <label class="adm-check"><input type="checkbox" id="pdf-expl" checked> Include explanations</label>
-            <label class="adm-check"><input type="checkbox" id="pdf-src"> Show each question's source (e.g. Formative 40)</label>
-            <label class="adm-check"><input type="checkbox" id="pdf-shuffle"> Shuffle the order within each lecture</label>
-            <div id="pdf-summary" class="adm-count" style="margin-top:12px"></div>`;
-        pdfRecalc(); byId('pdf-overlay').classList.add('visible');
-    };
-    window.closePdfSetup = function() { byId('pdf-overlay').classList.remove('visible'); };
-    function pdfFilters() { return { source: byId('pdf-source').value, type: byId('pdf-type') ? byId('pdf-type').value : '' }; }
-    const pdfMatch = (q, f) => (!f.source || q.source === f.source) && (!f.type || (q.type || 'mcq') === f.type);
-    window.pdfRecalc = function() {
-        const f = pdfFilters(), counts = {};
-        safeAllQuestions.forEach(q => { if (pdfMatch(q, f)) counts[q.lecture] = (counts[q.lecture] || 0) + 1; });
-        pdfSel.forEach(l => { if (!counts[l]) pdfSel.delete(l); });
-        byId('pdf-lectures').innerHTML = Object.keys(counts).sort().map(l =>
-            `<label class="ex-row"><input type="checkbox" data-lec="${esc(l)}" ${pdfSel.has(l) ? 'checked' : ''} onchange="pdfToggle(this)"><span class="ex-name">${esc(l)}</span><span class="sb-item-cnt">${counts[l]}</span></label>`).join('') || '<div class="wq-empty">No questions match these filters.</div>';
-        const total = [...pdfSel].reduce((n, l) => n + (counts[l] || 0), 0);
-        byId('pdf-summary').textContent = total ? `${total} question${total === 1 ? '' : 's'} from ${pdfSel.size} lecture${pdfSel.size === 1 ? '' : 's'} will be included` : 'Select at least one lecture.';
-        byId('pdf-go').disabled = !total;
-        const mode = document.querySelector('input[name="pdf-ans"]:checked').value;
-        byId('pdf-expl').disabled = mode === 'none'; byId('pdf-expl').parentElement.style.opacity = mode === 'none' ? '.5' : '';
-    };
-    window.pdfToggle = function(el) { if (el.checked) pdfSel.add(el.dataset.lec); else pdfSel.delete(el.dataset.lec); pdfRecalc(); };
-    window.pdfSelectAll = function(on) { const f = pdfFilters(); pdfSel = new Set(on ? safeAllQuestions.filter(q => pdfMatch(q, f)).map(q => q.lecture) : []); pdfRecalc(); };
-    function pdfOptions() {
-        const f = pdfFilters();
-        return { title: pdfClean(byId('pdf-title').value) || 'Question Bank', lectures: [...pdfSel].sort(), source: f.source, type: f.type,
-            answers: document.querySelector('input[name="pdf-ans"]:checked').value, explanations: byId('pdf-expl').checked && !byId('pdf-expl').disabled,
-            showSource: byId('pdf-src').checked, shuffle: byId('pdf-shuffle').checked };
-    }
-
-    // Pure function: options in, pdfmake document definition out.
-    function buildPdfDefinition(o) {
-        const GREEN = '#0a7a3f', GREY = '#6b7280';
-        const groups = o.lectures.map(l => {
-            let items = safeAllQuestions.filter(q => q.lecture === l && pdfMatch(q, o));
-            if (o.shuffle) items = shuffleArray(items);
-            return { lecture: l, items };
-        }).filter(g => g.items.length);
-        const total = groups.reduce((n, g) => n + g.items.length, 0);
-        const numW = total > 999 ? 34 : total > 99 ? 28 : 22, indent = numW + 2;
-        const key = [], writtenKey = [];
-        const content = [
-            { text: o.title, style: 'title' },
-            { text: `${total} question${total === 1 ? '' : 's'} · ${new Date().toLocaleDateString()}`, style: 'sub' },
-            { text: groups.map(g => `${g.lecture} (${g.items.length})`).join('  ·  '), style: 'sub', margin: [0, 0, 0, 6] }
-        ];
-        let n = 0;
-        groups.forEach(g => {
-            content.push({ stack: [{ text: g.lecture, style: 'lecture' }, { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 507, y2: 0, lineWidth: 0.8, lineColor: '#2dd4bf' }] }], margin: [0, 14, 0, 8], unbreakable: true, keepWithNext: true });
-            g.items.forEach(q => {
-                n++;
-                const written = q.type === 'written', inline = o.answers === 'inline';
-                const stemRuns = [{ text: pdfClean(q.q) }];
-                if (written && !inline) stemRuns.push({ text: '   (written)', fontSize: 8, color: GREY });
-                if (o.showSource) stemRuns.push({ text: '   ' + q.source, fontSize: 8, color: GREY });
-                const stack = [{ columns: [{ width: numW, text: n + '.', bold: true }, { width: '*', text: stemRuns }], columnGap: 2, margin: [0, 0, 0, 3] }];
-                if (!written) {
-                    q.choices.forEach((c, i) => {
-                        const L = 'ABCDEF'[i], right = inline && L === q.ans;
-                        stack.push({ columns: [{ width: 16, text: L + '.', bold: right, color: right ? GREEN : undefined }, { width: '*', text: pdfClean(c), bold: right, color: right ? GREEN : undefined }], columnGap: 2, margin: [indent, 1, 0, 1] });
-                    });
-                    if (inline) {
-                        stack.push({ text: [{ text: 'Answer: ', bold: true }, { text: q.ans, bold: true, color: GREEN }], margin: [indent, 3, 0, 0] });
-                        if (o.explanations && q.reason) stack.push({ text: pdfClean(q.reason), italics: true, color: '#4b5563', fontSize: 9.5, margin: [indent, 2, 0, 0] });
-                    }
-                    if (o.answers === 'key') key.push({ n, l: q.ans, reason: pdfClean(q.reason) });
-                } else {
-                    if (inline) stack.push({ table: { widths: ['*'], body: [[{ stack: [{ text: 'Model answer', bold: true, color: GREEN, fontSize: 9 }, { text: pdfClean(q.modelAnswer), margin: [0, 2, 0, 0] }].concat(o.explanations && q.reason ? [{ text: pdfClean(q.reason), italics: true, color: '#4b5563', fontSize: 9.5, margin: [0, 4, 0, 0] }] : []), fillColor: '#f1f5f4', margin: [6, 4, 6, 4] }]] }, layout: 'noBorders', margin: [indent, 2, 0, 0] });
-                    if (o.answers === 'key') writtenKey.push({ n, model: pdfClean(q.modelAnswer), reason: pdfClean(q.reason) });
-                }
-                content.push({ stack, unbreakable: true, margin: [0, 0, 0, 9] });
-            });
-        });
-        if (o.answers === 'key' && (key.length || writtenKey.length)) {
-            content.push({ text: 'Answer key', style: 'title', pageBreak: 'before', margin: [0, 0, 0, 10] });
-            if (key.length && !o.explanations) {
-                const cols = 6, per = Math.ceil(key.length / cols), columns = [];
-                for (let c = 0; c < cols; c++) { const part = key.slice(c * per, (c + 1) * per); if (part.length) columns.push({ width: '*', stack: part.map(e => ({ text: [{ text: e.n + '. ', color: GREY }, { text: e.l, bold: true }], margin: [0, 1.5, 0, 1.5] })) }); }
-                content.push({ columns, columnGap: 8 });
-            } else key.forEach(e => content.push({ text: [{ text: e.n + '. ' + e.l, bold: true }].concat(e.reason ? [{ text: '   ' + e.reason, color: '#4b5563' }] : []), margin: [0, 0, 0, 4], unbreakable: true }));
-            if (writtenKey.length) {
-                content.push({ text: 'Written questions: model answers', style: 'lecture', margin: [0, 16, 0, 6] });
-                writtenKey.forEach(e => content.push({ stack: [{ text: [{ text: e.n + '. ', bold: true }, { text: e.model }] }].concat(o.explanations && e.reason ? [{ text: e.reason, italics: true, color: '#4b5563', fontSize: 9.5, margin: [0, 2, 0, 0] }] : []), margin: [0, 0, 0, 8], unbreakable: true }));
-            }
-        }
-        return {
-            info: { title: o.title, creator: 'Pediatrics Question Bank' }, pageSize: 'A4', pageMargins: [44, 50, 44, 54],
-            defaultStyle: { font: 'Roboto', fontSize: 10.5, lineHeight: 1.2 },
-            styles: { title: { fontSize: 19, bold: true, margin: [0, 0, 0, 2] }, sub: { fontSize: 9.5, color: GREY, margin: [0, 0, 0, 2] }, lecture: { fontSize: 13, bold: true, color: '#0f766e', margin: [0, 0, 0, 3] } },
-            footer: (page, pages) => ({ text: `${o.title}   ·   Page ${page} of ${pages}`, alignment: 'center', fontSize: 8, color: '#9ca3af', margin: [0, 18, 0, 0] }),
-            content
-        };
-    }
-    function pdfFileName(o) {
-        const slug = t => String(t).replace(/[^A-Za-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
-        const part = o.lectures.length === 1 ? slug(o.lectures[0]).slice(0, 30) : `${o.lectures.length}_lectures`;
-        return `${slug(o.title).slice(0, 40) || 'Questions'}_${part}_${new Date().toISOString().slice(0, 10)}.pdf`;
-    }
-    window.downloadPdf = async function() {
-        const btn = byId('pdf-go'); if (btn.disabled) return;
-        const o = pdfOptions(); btn.disabled = true; btn.textContent = 'Preparing…';
-        try {
-            await loadPdfLib();
-            await new Promise(r => setTimeout(r, 40));            // let the button repaint before the heavy work
-            const def = buildPdfDefinition(o), count = def.content.length;
-            await Promise.race([new Promise((res, rej) => { try { window.pdfMake.createPdf(def).download(pdfFileName(o), res); } catch (e) { rej(e); } }), new Promise(r => setTimeout(r, 90000))]);
-            toast('PDF downloaded'); closePdfSetup();
-        } catch (e) {
-            console.error(e);
-            toast(/^load:/.test(e.message || '') ? 'Could not load the PDF tool. Check your connection and try again.' : 'Could not create the PDF. Try fewer lectures.');
-        } finally { btn.disabled = false; btn.textContent = 'Download PDF'; }
-    };
-
-    // ═══════════════ AI HELP (Gemini through your own Cloudflare Worker) ═══════════════
-    // Two buttons under an answered question: "Explain the answer" and "Key teaching points".
-    // Shown to admins only until "Let ALL students use AI help" is switched on in Admin → AI help.
-    // The Worker re-checks this on the server, so hiding the buttons is not the only protection.
-    const aiDefaults = () => ({ endpoint: '', model: '', provider: 'gemini', groqModel: '', enabledForAll: false });
-    let aiConfig = aiDefaults();
-    const aiCache = {}, aiProv = {}, aiView = {}, aiErr = {}, aiBusy = new Set();
-    const provLabel = p => p === 'groq' ? 'Groq' : p === 'gemini' ? 'Gemini' : '';
-    async function loadAiConfig() {
-        aiConfig = aiDefaults();
-        try {
-            const c = (window._fb && window._fb.getAiConfig) ? await window._fb.getAiConfig() : null;
-            if (c) aiConfig = { endpoint: String(c.endpoint || '').trim(), model: String(c.model || '').trim(), groqModel: String(c.groqModel || '').trim(), provider: c.provider === 'groq' ? 'groq' : 'gemini', enabledForAll: c.enabledForAll === true };
-        } catch (e) {}
-    }
-    function aiAvailable() { return !!aiConfig.endpoint && (isAdmin || aiConfig.enabledForAll) && !exam; }
-    function aiShowable(c) { return c.type === 'written' ? (!!mcqAnswers[c.id] || writtenShown.has(c.id)) : !!mcqAnswers[c.id]; }
-    function aiFormat(text) {
-        const out = []; let list = null;
-        const inline = t => esc(t).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
-        String(text || '').split('\n').forEach(raw => {
-            const line = raw.trim(), m = line.match(/^[-*•]\s+(.*)$/);
-            if (m) { if (!list) { list = []; out.push(list); } list.push(inline(m[1])); }
-            else { list = null; if (line) out.push(inline(line)); }
-        });
-        return out.map(x => Array.isArray(x) ? `<ul>${x.map(i => `<li>${i}</li>`).join('')}</ul>` : `<p>${x}</p>`).join('');
-    }
-    function aiOutHTML(c) {
-        const mode = aiView[c.id]; if (!mode) return '';
-        const key = c.id + '|' + mode;
-        if (aiBusy.has(key)) return '<span class="ai-dots">Thinking</span>';
-        if (aiErr[key]) return `<span class="ai-err">${esc(aiErr[key])}</span>`;
-        if (aiCache[key]) return aiFormat(aiCache[key]) + '<div class="ai-note">AI-generated' + (aiProv[key] ? ' by ' + aiProv[key] : '') + '. Check important details against your lecture notes.</div>';
-        return '';
-    }
-    function aiBoxHTML(c) {
-        if (!aiAvailable() || !aiShowable(c)) return '';
-        const busy = k => aiBusy.has(c.id + '|' + k), on = k => aiView[c.id] === k ? 'on' : '';
-        return `<div class="ai-box" id="ai-box"><div class="ai-head">🤖 AI help <span class="ai-tag">${isAdmin && !aiConfig.enabledForAll ? 'admin preview' : 'beta'}</span></div>
-            <div class="ai-btns"><button class="ai-btn ${on('explain')}" ${busy('explain') ? 'disabled' : ''} onclick="askAI('${c.id}','explain')">Explain the answer</button>
-            <button class="ai-btn ${on('points')}" ${busy('points') ? 'disabled' : ''} onclick="askAI('${c.id}','points')">Key teaching points</button></div>
-            <div class="ai-out" id="ai-out">${aiOutHTML(c)}</div></div>`;
-    }
-    function updateAiBox(c) {
-        const cur = deck[idx]; if (!cur || cur.id !== c.id || !byId('ai-box')) return;
-        const box = byId('ai-box');
-        box.querySelectorAll('.ai-btn').forEach((b, i) => { const k = i ? 'points' : 'explain'; b.classList.toggle('on', aiView[c.id] === k); b.disabled = aiBusy.has(c.id + '|' + k); });
-        byId('ai-out').innerHTML = aiOutHTML(c);
-    }
-    function aiPayload(c, mode) {
-        const p = { mode, type: c.type === 'written' ? 'written' : 'mcq', lecture: c.lecture, q: c.q, reason: c.reason || '' };
-        if (c.type === 'written') p.modelAnswer = c.modelAnswer || '';
-        else { p.choices = c.choices; p.correct = c.ans; const a = mcqAnswers[c.id]; if (a && /^[A-F]$/.test(a) && a !== c.ans) p.chosen = a; }
-        return p;
-    }
-    function aiErrorText(status, code) {
-        if (code === 'ai_disabled') return 'AI help is not switched on for your account yet.';
-        if (code === 'rate_limit') return 'You are asking too quickly. Please wait a minute and try again.';
-        if (code === 'ai_busy') return 'The AI service is busy right now (free quota). Please try again in a little while.';
-        if (code === 'ai_blocked') return 'The AI declined to answer this one.';
-        if (status === 401) return 'Please sign out and sign in again, then retry.';
-        if (status === 0) return 'Could not reach the AI service. Check your connection and try again.';
-        return 'The AI could not answer this time. Please try again.';
-    }
-    async function aiRequest(payload) {          // returns { text } or throws { status, code }
-        let token; try { token = await window._fb.getIdToken(); } catch (e) { throw { status: 401, code: 'unauthenticated' }; }
-        let res; try { res = await fetch(aiConfig.endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token }, body: JSON.stringify(payload) }); }
-        catch (e) { throw { status: 0, code: 'network' }; }
-        const j = await res.json().catch(() => ({}));
-        if (!res.ok || !j.text) throw { status: res.status, code: j.error || 'error' };
-        return j;
-    }
-    window.askAI = async function(id, mode) {
-        const c = safeAllQuestions.find(q => q.id === id);
-        if (!c || !aiAvailable() || !aiShowable(c) || !['explain', 'points'].includes(mode)) return;
-        const key = id + '|' + mode; aiView[id] = mode;
-        if (aiCache[key] || aiBusy.has(key)) { updateAiBox(c); return; }
-        aiBusy.add(key); delete aiErr[key]; updateAiBox(c);
-        try { const r = await aiRequest(aiPayload(c, mode)); aiCache[key] = r.text; aiProv[key] = provLabel(r.provider); }
-        catch (e) { aiErr[key] = aiErrorText(e.status, e.code); }
-        finally { aiBusy.delete(key); }
-        updateAiBox(c);
-    };
-
-    // ---- Admin → AI help tab ----
-    function aiStatusLine() {
-        if (!aiConfig.endpoint) return '<span class="ai-err">Off: no Worker URL saved yet.</span>';
-        return (aiConfig.enabledForAll ? '<span style="color:var(--green)">On for ALL students.</span>' : '<span style="color:var(--teal)">On for admins only.</span> Students do not see the buttons yet.') +
-            ` Main model: ${provLabel(aiConfig.provider)}; the other provider is used automatically as a backup if the Worker has its key.`;
-    }
-    function admAI() {
-        const c = aiConfig;
-        byId('adm-content').innerHTML = `
-            <div class="adm-help"><strong>AI help</strong> adds two buttons under each answered question: <em>Explain the answer</em> and <em>Key teaching points</em>. It runs through your own Cloudflare Worker, so your API keys never reach the browser. Setup steps are in <code>SETUP_AI.md</code>.</div>
-            <div class="adm-count" style="margin-top:12px" id="ai-status-line">Status: ${aiStatusLine()}</div>
-            <label class="adm-label">Worker URL</label>
-            <input id="ai-endpoint" class="adm-in" placeholder="https://pediatrics-ai.yourname.workers.dev" value="${esc(c.endpoint)}">
-            <label class="adm-label">Main provider (the other one is the automatic backup)</label>
-            <select id="ai-provider" class="adm-sel" style="width:100%"><option value="gemini" ${c.provider !== 'groq' ? 'selected' : ''}>Gemini</option><option value="groq" ${c.provider === 'groq' ? 'selected' : ''}>Groq</option></select>
-            <div class="adm-two" style="grid-template-columns:1fr 1fr">
-                <div><label class="adm-label">Gemini model (empty = default)</label><input id="ai-model" class="adm-in" placeholder="gemini-2.5-flash-lite" value="${esc(c.model)}"></div>
-                <div><label class="adm-label">Groq model (empty = default)</label><input id="ai-groqmodel" class="adm-in" placeholder="openai/gpt-oss-120b" value="${esc(c.groqModel)}"></div>
-            </div>
-            <label class="adm-check"><input type="checkbox" id="ai-all" ${c.enabledForAll ? 'checked' : ''}> Let ALL students use AI help <span style="color:var(--text3)">(unticked = admins only)</span></label>
-            <div id="adm-err" class="adm-err"></div>
-            <div class="adm-toolbar" style="margin-top:14px"><button class="btn-primary" id="ai-save" style="width:auto" onclick="admAISave()">Save</button><button class="btn-icon" id="ai-test" onclick="admAITest()">Test with a question</button></div>
-            <div id="ai-test-out" class="ai-out"></div>`;
-    }
-    window.admAISave = async function() {
-        const err = m => { byId('adm-err').textContent = m; };
-        const endpoint = byId('ai-endpoint').value.trim().replace(/\/+$/, ''), model = byId('ai-model').value.trim(), groqModel = byId('ai-groqmodel').value.trim();
-        const provider = byId('ai-provider').value === 'groq' ? 'groq' : 'gemini', all = byId('ai-all').checked;
-        if (endpoint && !/^https:\/\/[^\s/]+(\/\S*)?$/.test(endpoint)) return err('The Worker URL must start with https://');
-        if (model && !/^[a-z0-9][a-z0-9.\-]{1,60}$/i.test(model)) return err('The Gemini model name can only contain letters, numbers, dots and dashes (for example gemini-2.5-flash-lite).');
-        if (groqModel && !/^[a-z0-9][a-z0-9._\-\/]{1,80}$/i.test(groqModel)) return err('The Groq model name can only contain letters, numbers and . _ - / (for example openai/gpt-oss-120b).');
-        if (all && !endpoint) return err('Add the Worker URL before switching AI on for all students.');
-        byId('ai-save').disabled = true; err('');
-        try { await window._fb.saveAiConfig({ endpoint, model, groqModel, provider, enabledForAll: all }); } catch (e) { byId('ai-save').disabled = false; return err(adminErrorText(e)); }
-        aiConfig = { endpoint, model, groqModel, provider, enabledForAll: all };
-        toast(all ? 'AI help is now ON for all students' : 'Saved. AI help is admins-only'); renderAdmin(); if (!exam) renderCard();
-    };
-    window.admAITest = async function() {
-        const out = byId('ai-test-out'), c = safeAllQuestions.find(q => q.type !== 'written');
-        const url = byId('ai-endpoint').value.trim().replace(/\/+$/, '');
-        if (!url) { out.innerHTML = '<span class="ai-err">Enter the Worker URL first.</span>'; return; }
-        if (!c) { out.innerHTML = '<span class="ai-err">There is no multiple-choice question to test with.</span>'; return; }
-        const keep = aiConfig.endpoint; aiConfig.endpoint = url;      // test the URL as typed, even before saving
-        byId('ai-test').disabled = true; out.innerHTML = '<span class="ai-dots">Asking the Worker</span>';
-        try {
-            const r = await aiRequest(aiPayload(c, 'explain'));
-            const who = provLabel(r.provider) ? `answered by ${provLabel(r.provider)}${r.model ? ' (' + esc(r.model) + ')' : ''}` : 'answered';
-            const fb = r.fallbackFrom ? `<div class="ai-err" style="margin-bottom:6px">The main provider failed (${esc(r.fallbackFrom)}), so the backup answered. Check the main provider's key, model and quota.</div>` : '';
-            out.innerHTML = `<div style="color:var(--green);margin-bottom:6px">✓ It works: ${who}${r.cached ? ', served from cache' : ''}. Sample for: <em>${esc(c.q.slice(0, 80))}…</em></div>${fb}${aiFormat(r.text)}`;
-        } catch (e) {
-            const hints = { not_configured: 'The Worker needs FIREBASE_PROJECT_ID and at least one key (GEMINI_API_KEY or GROQ_API_KEY).', ai_config: 'The AI provider rejected the request: check the API key secret and the model name.', ai_busy: 'The provider is rate-limiting your free quota. Try again shortly.', unauthenticated: 'Sign out and in again; also check FIREBASE_PROJECT_ID in the Worker.', ai_disabled: 'Your account is not recognised as admin by the Worker: check the admins document and the Firestore rules.', auth_unavailable: 'The Worker could not reach Firestore.', origin_not_allowed: 'Add this site address to ALLOWED_ORIGINS in the Worker.' };
-            out.innerHTML = `<span class="ai-err">✗ Failed (${e.status ? 'HTTP ' + e.status + ', ' : ''}${esc(e.code)}). ${hints[e.code] || (e.status === 0 ? 'Could not reach the Worker: check the URL, and that ALLOWED_ORIGINS includes this site.' : '')}</span>`;
-        } finally { aiConfig.endpoint = keep; byId('ai-test').disabled = false; }
-    };
-
-    let touchStartX = 0;
-    document.getElementById('card-area').addEventListener('touchstart', e => { touchStartX = e.touches[0].clientX; }, { passive: true });
-    document.getElementById('card-area').addEventListener('touchend', e => {
-        if (document.getElementById('main-app').style.display === 'none') return;
-        const dx = e.changedTouches[0].clientX - touchStartX;
-        if (Math.abs(dx) > 60) { if (dx < 0) window.nextCard(); else window.prevCard(); }
-    });
-  </script>
-
-  <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-app.js";
-    import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, GoogleAuthProvider, signInWithPopup } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-auth.js";
-    import { getFirestore, doc, setDoc, getDoc, getDocs, collection, query, where, writeBatch, deleteDoc, serverTimestamp, Timestamp } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-firestore.js";
-
-    const firebaseConfig = {
-        apiKey: "AIzaSyBjN5mvWufrfGMW8eDZKAwrVa2dAIt0Yu0",
-        authDomain: "obg-e5d67.firebaseapp.com",
-        projectId: "obg-e5d67",
-        storageBucket: "obg-e5d67.firebasestorage.app",
-        messagingSenderId: "575965796689",
-        appId: "1:575965796689:web:2d2aea412a04672c275b70"
-    };
-
-    const app = initializeApp(firebaseConfig);
-    const auth = getAuth(app);
-    const db = getFirestore(app);
-    const googleProvider = new GoogleAuthProvider();
-
-    window._saveToFirebase = async (data) => {
-        if (auth.currentUser) {
-            try {
-                await setDoc(doc(db, "users", auth.currentUser.uid), data, { merge: true });
-                return true;
-            } catch(e) {
-                console.error("Firebase Save Blocked:", e.message);
-                return false;
-            }
-        }
-        return false;
-    };
-
-    window._loadFromFirebase = async () => {
-        if (auth.currentUser) {
-            try {
-                const snap = await getDoc(doc(db, "users", auth.currentUser.uid));
-                return snap.exists() ? snap.data() : null;
-            } catch(e) {
-                console.error("Firebase Load Blocked:", e.message);
-                return null;
-            }
-        }
-        return null;
-    };
-
-    const tsMs = t => (t && typeof t.toMillis === "function") ? t.toMillis() : 0;
-    window._fb = {
-        // Only downloads questions changed since the last sync (keeps Firestore reads tiny).
-        async fetchQuestionsSince(ms) {
-            const snap = await getDocs(query(collection(db, "questions"), where("updatedAt", ">=", Timestamp.fromMillis(ms))));
-            return snap.docs.map(d => { const x = d.data(); return { ...x, id: d.id, updatedMs: tsMs(x.updatedAt), updatedAt: undefined }; });
-        },
-        async isAdmin() {
-            if (!auth.currentUser) return false;
-            try { return (await getDoc(doc(db, "admins", auth.currentUser.uid))).exists(); } catch (e) { return false; }
-        },
-        async saveQuestion(id, data) { await setDoc(doc(db, "questions", id), { ...data, updatedAt: serverTimestamp() }, { merge: true }); },
-        async fetchLecturesSince(ms) {
-            const snap = await getDocs(query(collection(db, "lectures"), where("updatedAt", ">=", Timestamp.fromMillis(ms))));
-            return snap.docs.map(d => { const x = d.data(); return { ...x, id: d.id, updatedMs: tsMs(x.updatedAt), updatedAt: undefined }; });
-        },
-        async saveLecture(id, data) { await setDoc(doc(db, "lectures", id), { ...data, updatedAt: serverTimestamp() }, { merge: true }); },
-        async getAiConfig() { try { const s = await getDoc(doc(db, "config", "ai")); return s.exists() ? s.data() : null; } catch (e) { return null; } },
-        async saveAiConfig(d) { await setDoc(doc(db, "config", "ai"), { ...d, updatedAt: serverTimestamp() }, { merge: true }); },
-        async getIdToken() { if (!auth.currentUser) throw new Error("not signed in"); return auth.currentUser.getIdToken(); },
-        async batchWrite(ops) {
-            for (let i = 0; i < ops.length; i += 400) {
-                const batch = writeBatch(db);
-                ops.slice(i, i + 400).forEach(o => batch.set(doc(db, o.col, o.id), { ...o.data, updatedAt: serverTimestamp() }, { merge: true }));
-                await batch.commit();
-            }
-        },
-        async saveQuestionsBatch(items) {
-            for (let i = 0; i < items.length; i += 400) {
-                const batch = writeBatch(db);
-                items.slice(i, i + 400).forEach(it => batch.set(doc(db, "questions", it.id), { ...it.data, updatedAt: serverTimestamp() }));
-                await batch.commit();
-            }
-        },
-        async listSummaries() { const snap = await getDocs(collection(db, "summaries")); return snap.docs.map(d => ({ ...d.data(), id: d.id, updatedAt: undefined })); },
-        async saveSummary(id, data) { await setDoc(doc(db, "summaries", id), { ...data, updatedAt: serverTimestamp() }); },
-        async deleteSummary(id) { await deleteDoc(doc(db, "summaries", id)); }
-    };
-
-    onAuthStateChanged(auth, async (user) => {
-        if (user) {
-            document.getElementById("auth-screen").style.display = "none";
-            document.getElementById("main-app").style.display = "flex";
-            if (window.initAppAfterLogin) await window.initAppAfterLogin();
-        } else {
-            document.getElementById("auth-screen").style.display = "flex";
-            document.getElementById("main-app").style.display = "none";
-        }
-    });
-
-    document.getElementById("loginForm").addEventListener("submit", async (e) => {
-        e.preventDefault();
-        const b = e.submitter; b.textContent = "Logging in...";
-        try { await signInWithEmailAndPassword(auth, document.getElementById("email").value, document.getElementById("password").value); } 
-        catch (err) { alert("Login failed: " + err.message); }
-        finally { b.textContent = "Sign In"; }
-    });
-
-    document.getElementById("signupForm").addEventListener("submit", async (e) => {
-        e.preventDefault();
-        const b = e.submitter; b.textContent = "Registering...";
-        try { await createUserWithEmailAndPassword(auth, document.getElementById("signupEmail").value, document.getElementById("signupPassword").value); } 
-        catch (err) { alert("Signup failed: " + err.message); }
-        finally { b.textContent = "Register"; }
-    });
-
-    document.querySelectorAll(".googleLoginBtn").forEach(btn => {
-        btn.addEventListener("click", async () => {
-            try {
-                await signInWithPopup(auth, googleProvider);
-            } catch (err) {
-                alert("Google Sign-In failed: " + err.message);
-            }
-        });
-    });
-
-    document.getElementById("logoutBtn").addEventListener("click", () => signOut(auth));
-
-    window.toggleAuth = (showSignup) => {
-        document.getElementById("login-section").style.display = showSignup ? "none" : "block";
-        document.getElementById("signup-section").style.display = showSignup ? "block" : "none";
-    };
-  </script>
-</body>
-</html>
+    const normStem = s 
