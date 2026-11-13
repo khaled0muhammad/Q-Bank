@@ -1,7 +1,7 @@
 {
-  "name": "Pediatrics Question Bank",
-  "short_name": "Peds QBank",
-  "description": "Pediatrics MCQ and written question bank with exams, summaries and offline practice.",
+  "name": "SNOP Question Bank",
+  "short_name": "SNOP QBank",
+  "description": "SNOP MCQ and written question bank with exams, summaries and offline practice.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
